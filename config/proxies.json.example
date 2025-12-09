@@ -1,0 +1,72 @@
+{
+    "pools": [
+        {
+            "type": "residential",
+            "geography": "US",
+            "rotationStrategy": "performance-based",
+            "proxies": [
+                {
+                    "id": "proxy-us-res-1",
+                    "host": "proxy1.example.com",
+                    "port": 8080,
+                    "username": "user1",
+                    "password": "pass1",
+                    "type": "residential",
+                    "geography": "US",
+                    "isp": "Comcast",
+                    "status": "active",
+                    "metadata": {
+                        "successRate": 1.0,
+                        "captchaRate": 0.0,
+                        "avgResponseTime": 500,
+                        "lastUsed": "2025-12-09T00:00:00Z",
+                        "totalRequests": 0,
+                        "failedRequests": 0
+                    }
+                },
+                {
+                    "id": "proxy-us-res-2",
+                    "host": "proxy2.example.com",
+                    "port": 8080,
+                    "username": "user2",
+                    "password": "pass2",
+                    "type": "residential",
+                    "geography": "US",
+                    "isp": "Verizon",
+                    "status": "active",
+                    "metadata": {
+                        "successRate": 1.0,
+                        "captchaRate": 0.0,
+                        "avgResponseTime": 450,
+                        "lastUsed": "2025-12-09T00:00:00Z",
+                        "totalRequests": 0,
+                        "failedRequests": 0
+                    }
+                }
+            ]
+        },
+        {
+            "type": "datacenter",
+            "geography": "GLOBAL",
+            "rotationStrategy": "round-robin",
+            "proxies": [
+                {
+                    "id": "proxy-dc-1",
+                    "host": "dc-proxy1.example.com",
+                    "port": 3128,
+                    "type": "datacenter",
+                    "geography": "GLOBAL",
+                    "status": "active",
+                    "metadata": {
+                        "successRate": 1.0,
+                        "captchaRate": 0.0,
+                        "avgResponseTime": 200,
+                        "lastUsed": "2025-12-09T00:00:00Z",
+                        "totalRequests": 0,
+                        "failedRequests": 0
+                    }
+                }
+            ]
+        }
+    ]
+}
