@@ -1,6 +1,6 @@
 
 import { MissionOrchestrator } from './orchestrator.js';
-import { createClient } from 'redis';
+import Redis from 'ioredis';
 import pino from 'pino';
 
 const logger = pino({ name: 'mission-control-service' });
@@ -13,17 +13,16 @@ async function main() {
     const orchestrator = new MissionOrchestrator(REDIS_URL);
     await orchestrator.connect();
 
-    const redis = createClient({ url: REDIS_URL });
-    await redis.connect();
+    const redis = new Redis(REDIS_URL);
 
     logger.info('Mission Control Service Ready. Listening on queue:mission-control:start');
 
     while (true) {
         try {
             // Blocking pop
-            const result = await redis.blPop('queue:mission-control:start', 0);
+            const result = await redis.blpop('queue:mission-control:start', 0);
             if (result) {
-                const payload = JSON.parse(result.element);
+                const payload = JSON.parse(result[1]);
                 await orchestrator.startMission(payload);
             }
         } catch (err) {

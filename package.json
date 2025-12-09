@@ -24,11 +24,14 @@
         "docker:logs": "docker-compose logs -f"
     },
     "devDependencies": {
+        "@pact-foundation/pact": "^16.0.2",
+        "@playwright/test": "^1.40.0",
+        "@types/ioredis": "^4.28.10",
         "@types/node": "^20.10.0",
-        "typescript": "^5.3.0",
-        "vitest": "^1.0.0",
         "@vitest/coverage-v8": "^1.0.0",
-        "@playwright/test": "^1.40.0"
+        "ioredis": "^5.8.2",
+        "typescript": "^5.3.0",
+        "vitest": "^1.0.0"
     },
     "engines": {
         "node": ">=20.0.0"

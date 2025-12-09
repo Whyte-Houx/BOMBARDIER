@@ -208,7 +208,7 @@ export class ProxyScraper {
                     },
                 });
 
-                const data = await response.json();
+                const data = await response.json() as { data: Array<{ ip: string; port: string; protocols?: string[]; country?: string; anonymityLevel?: string }> };
 
                 if (!data.data || data.data.length === 0) break;
 
@@ -216,7 +216,7 @@ export class ProxyScraper {
                     proxies.push({
                         host: proxy.ip,
                         port: parseInt(proxy.port, 10),
-                        protocol: this.parseProtocol(proxy.protocols?.[0] || 'http'),
+                        protocol: this.parseProtocol(proxy.protocols?.[0] ?? 'http'),
                         country: proxy.country,
                         anonymity: this.parseAnonymity(proxy.anonymityLevel),
                         source: 'geonode',
@@ -454,15 +454,15 @@ export class ProxyScraper {
     // Helper Methods
     // ============================================================================
 
-    private parseProtocol(protocol: string): ProxyProtocol {
-        const lower = protocol.toLowerCase();
+    private parseProtocol(protocol: string | undefined): ProxyProtocol {
+        const lower = (protocol ?? 'http').toLowerCase();
         if (lower.includes('socks5')) return 'socks5';
         if (lower.includes('socks4')) return 'socks4';
         if (lower.includes('https')) return 'https';
         return 'http';
     }
 
-    private parseAnonymity(level: string): ProxyAnonymity {
+    private parseAnonymity(level: string | undefined): ProxyAnonymity {
         const lower = level?.toLowerCase() || '';
         if (lower.includes('elite') || lower.includes('high')) return 'elite';
         if (lower.includes('anonymous')) return 'anonymous';

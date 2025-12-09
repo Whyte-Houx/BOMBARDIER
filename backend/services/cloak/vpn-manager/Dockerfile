@@ -25,7 +25,7 @@ RUN apk add --no-cache \
     wireguard-tools \
     openvpn \
     iptables \
-    resolvconf \
+    openresolv \
     ip6tables
 
 # Copy built files

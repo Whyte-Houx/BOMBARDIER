@@ -157,7 +157,7 @@ export class ProxyValidator {
                     return { success: false, responseTime: 0 };
                 }
 
-                const data = await response.json();
+                const data = await response.json() as { ip?: string; origin?: string };
                 const responseTime = Date.now() - startTime;
 
                 return {

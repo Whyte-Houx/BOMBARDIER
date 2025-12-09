@@ -26,10 +26,10 @@ export class LeakTester {
             const response = await fetch('https://api.ipify.org?format=json', {
                 signal: AbortSignal.timeout(5000),
             });
-            const data = await response.json();
+            const data = await response.json() as { ip: string };
             this.originalIp = data.ip;
             logger.debug({ ip: this.originalIp }, 'Cached original IP');
-            return this.originalIp;
+            return this.originalIp || null;
         } catch (err) {
             logger.error({ err }, 'Failed to cache original IP');
             return null;
@@ -57,7 +57,7 @@ export class LeakTester {
             result.ipLeak = true;
             result.passed = false;
             result.leaks.push('IP leak detected');
-            result.details.realIp = this.originalIp;
+            result.details.realIp = this.originalIp || undefined;
             result.details.detectedIp = ipResult.detectedIp;
         }
 
@@ -88,7 +88,7 @@ export class LeakTester {
             const response = await fetch('https://api.ipify.org?format=json', {
                 signal: AbortSignal.timeout(5000),
             });
-            const data = await response.json();
+            const data = await response.json() as { ip: string };
             const currentIp = data.ip;
 
             // Check if it matches expected
@@ -168,7 +168,7 @@ export class LeakTester {
             const response = await fetch('https://check.torproject.org/api/ip', {
                 signal: AbortSignal.timeout(10000),
             });
-            const data = await response.json();
+            const data = await response.json() as { IsTor: boolean };
             return data.IsTor === true;
         } catch {
             return false;

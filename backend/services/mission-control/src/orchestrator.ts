@@ -1,20 +1,25 @@
 
 import { BombingMethod, MissionConfig } from './types.js';
-import { createClient } from 'redis';
+import Redis from 'ioredis';
 import pino from 'pino';
 
 const logger = pino({ name: 'mission-control' });
 
 export class MissionOrchestrator {
-    private redis;
+    private redis: Redis;
 
     constructor(redisUrl: string) {
-        this.redis = createClient({ url: redisUrl });
-        this.redis.on('error', (err) => logger.error('Redis Client Error', err));
+        this.redis = new Redis(redisUrl);
+        this.redis.on('error', (err: Error) => logger.error('Redis Client Error', err));
     }
 
-    async connect() {
-        await this.redis.connect();
+    async connect(): Promise<void> {
+        // ioredis auto-connects, just wait for ready
+        if (this.redis.status === 'ready') return;
+        return new Promise((resolve, reject) => {
+            this.redis.once('ready', resolve);
+            this.redis.once('error', reject);
+        });
     }
 
     async startMission(config: MissionConfig) {
@@ -36,7 +41,7 @@ export class MissionOrchestrator {
         };
 
         // Push to the first queue
-        await this.redis.rPush(`queue:${firstStep}`, JSON.stringify(initialPayload));
+        await this.redis.rpush(`queue:${firstStep}`, JSON.stringify(initialPayload));
         logger.info(`Mission started. Dispatched to queue:${firstStep}`);
     }
 

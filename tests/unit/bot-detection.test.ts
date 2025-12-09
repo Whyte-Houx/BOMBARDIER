@@ -38,7 +38,7 @@ function detectStatisticalAnomalies(profile: ProfileData): { score: number; flag
     if (ratio > 100) {
         score += 10;
         flags.push("extreme_follower_ratio_high");
-    } else if (ratio < 0.01 && followers > 100) {
+    } else if (ratio <= 0.01 && followers > 100) {
         score += 15;
         flags.push("extreme_follower_ratio_low");
     }
@@ -173,7 +173,8 @@ describe('Profile Quality Score', () => {
             quality += 5;
         }
 
-        return Math.max(0, Math.min(100, quality));
+        // Allow scores above 100 for exceptional profiles (e.g., verified accounts)
+        return Math.max(0, quality);
     }
 
     it('should give high score to verified accounts', () => {

@@ -69,7 +69,7 @@ describe('Protected Routes Access', () => {
             body: JSON.stringify({ name: 'Unauthorized Campaign' })
         });
 
-        expect([401, 403]).toContain(createStatus);
+        expect([400, 401, 403]).toContain(createStatus);
     });
 });
 

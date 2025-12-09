@@ -178,7 +178,7 @@ export class FingerprintEngine {
 
             const getExtensionProxyHandler = {
                 apply: function (target: any, thisArg: any, argumentsList: any[]) {
-                    const result = Reflect.apply(target, thisArg, argumentsList);
+                    const result = Reflect.apply(target, thisArg, argumentsList) as any;
 
                     if (result && argumentsList[0] === 'WEBGL_debug_renderer_info') {
                         const getParameterOriginal = result.getParameter;
@@ -191,11 +191,11 @@ export class FingerprintEngine {
 
             // Override WebGL context
             const originalGetContext = HTMLCanvasElement.prototype.getContext;
-            HTMLCanvasElement.prototype.getContext = function (type: string, ...args: any[]) {
+            (HTMLCanvasElement.prototype as any).getContext = function (type: string, ...args: any[]): any {
                 const context = originalGetContext.apply(this, [type, ...args] as any);
 
                 if (context && (type === 'webgl' || type === 'webgl2')) {
-                    const getExtensionOriginal = context.getExtension;
+                    const getExtensionOriginal = (context as any).getExtension;
                     (context as any).getExtension = new Proxy(getExtensionOriginal, getExtensionProxyHandler);
                 }
 

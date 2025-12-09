@@ -205,7 +205,7 @@ export class TorManager {
                 timeout: 5000,
             });
 
-            const data = await response.json();
+            const data = await response.json() as { IsTor: boolean };
             return data.IsTor === true;
         } catch {
             return false;
@@ -237,7 +237,7 @@ export class TorManager {
                 agent,
             });
 
-            const data = await response.json();
+            const data = await response.json() as { IsTor: boolean; IP: string };
 
             if (data.IsTor) {
                 this.currentIp = data.IP;

@@ -38,7 +38,8 @@ export interface ValidatedProxy extends ScrapedProxy {
 
 export interface ProxySourceConfig {
     name: ProxySource;
-    url: string | ((page: number) => string);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    url: string | ((param: any) => string);
     enabled: boolean;
     rateLimit: number; // ms between requests
     parseFunction: string; // Name of parsing function
