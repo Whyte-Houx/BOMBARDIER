@@ -1,0 +1,21 @@
+{
+    "name": "@bombardier/fingerprint-engine",
+    "version": "1.0.0",
+    "description": "Advanced browser fingerprint generation and anti-detection",
+    "type": "module",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsx watch src/fingerprint-engine.ts",
+        "start": "node dist/fingerprint-engine.js"
+    },
+    "dependencies": {
+        "playwright": "^1.40.0",
+        "pino": "^8.17.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "typescript": "^5.3.3",
+        "tsx": "^4.6.0"
+    }
+}

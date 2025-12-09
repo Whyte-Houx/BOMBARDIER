@@ -1,0 +1,32 @@
+{
+  "name": "bombardier-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "node --loader ts-node/esm src/server.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^9.3.1",
+    "@fastify/cors": "^8.5.0",
+    "@fastify/websocket": "^8.3.1",
+    "argon2": "^0.30.3",
+    "fastify": "^4.27.0",
+    "fastify-plugin": "^4.5.1",
+    "jose": "^5.2.2",
+    "mongoose": "^8.6.2",
+    "prom-client": "^15.0.0",
+    "redis": "^4.6.13",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@pact-foundation/pact": "^12.4.0",
+    "@types/node": "^20.11.30",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3",
+    "vitest": "^1.6.1"
+  }
+}

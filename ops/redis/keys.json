@@ -1,0 +1,14 @@
+{
+  "rate": {
+    "keyPattern": "rate:{scope}:{id}",
+    "ttlSeconds": 60
+  },
+  "session": {
+    "keyPattern": "session:{platform}:{sessionId}",
+    "ttlSeconds": 86400
+  },
+  "refreshToken": {
+    "keyPattern": "rt:{sessionId}",
+    "ttlSeconds": 2592000
+  }
+}

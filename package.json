@@ -1,0 +1,36 @@
+{
+    "name": "bombardier-monorepo",
+    "version": "1.0.0",
+    "description": "Bombardier Target Acquisition & Engagement AI Platform",
+    "private": true,
+    "scripts": {
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:unit": "vitest run tests/unit",
+        "test:integration": "vitest run tests/integration",
+        "test:e2e": "playwright test tests/e2e",
+        "test:coverage": "vitest run --coverage",
+        "lint": "npm run lint:api && npm run lint:workers && npm run lint:dashboard",
+        "lint:api": "cd backend/api && npm run lint --if-present",
+        "lint:workers": "cd backend/workers && npm run lint --if-present",
+        "lint:dashboard": "cd frontend/dashboard && npm run lint --if-present",
+        "build": "npm run build:api && npm run build:workers && npm run build:dashboard",
+        "build:api": "cd backend/api && npm run build --if-present",
+        "build:workers": "cd backend/workers && npm run build --if-present",
+        "build:dashboard": "cd frontend/dashboard && npm run build",
+        "dev": "docker-compose up -d",
+        "dev:down": "docker-compose down",
+        "docker:build": "docker-compose build",
+        "docker:logs": "docker-compose logs -f"
+    },
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "typescript": "^5.3.0",
+        "vitest": "^1.0.0",
+        "@vitest/coverage-v8": "^1.0.0",
+        "@playwright/test": "^1.40.0"
+    },
+    "engines": {
+        "node": ">=20.0.0"
+    }
+}

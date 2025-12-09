@@ -1,0 +1,20 @@
+{
+    "name": "@bombardier/cloak-core",
+    "version": "1.0.0",
+    "description": "Unified Cloak session management",
+    "type": "module",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsx watch src/index.ts"
+    },
+    "dependencies": {
+        "playwright": "^1.43.0",
+        "pino": "^8.17.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "typescript": "^5.3.3",
+        "tsx": "^4.6.0"
+    }
+}

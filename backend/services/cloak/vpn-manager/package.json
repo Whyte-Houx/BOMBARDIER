@@ -1,0 +1,35 @@
+{
+    "name": "@bombardier/vpn-manager",
+    "version": "1.0.0",
+    "description": "VPN connection manager for WireGuard and OpenVPN",
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsx watch src/index.ts",
+        "test": "echo 'Tests not implemented yet'"
+    },
+    "dependencies": {},
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "typescript": "^5.3.3",
+        "tsx": "^4.6.0"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    },
+    "keywords": [
+        "vpn",
+        "wireguard",
+        "openvpn",
+        "vpngate",
+        "protonvpn"
+    ]
+}

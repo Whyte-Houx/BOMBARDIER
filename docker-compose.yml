@@ -1,0 +1,423 @@
+# Docker Compose - Bombardier Target Acquisition & Engagement AI
+# Development Environment Configuration
+# Per dev_docs/technical_specs/architecture.md
+
+services:
+  # ============================================================================
+  # Infrastructure Services
+  # ============================================================================
+
+  mongodb:
+    image: mongo:7
+    container_name: bombardier-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: bombardier
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bombardier-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: bombardier-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bombardier-network
+
+  # ============================================================================
+  # Application Services
+  # ============================================================================
+
+  api:
+    build:
+      context: ./backend/api
+      dockerfile: Dockerfile
+    container_name: bombardier-api
+    ports:
+      - "4050:4050"
+    environment:
+      - NODE_ENV=development
+      - PORT=4050
+      - MONGO_URL=mongodb://mongodb:27017/bombardier
+      - REDIS_URL=redis://redis:6379
+      - JWT_KEY_TTL_DAYS=30
+      - JWT_ROTATE_MAX_KEYS=3
+      - RBAC_CONFIG_PATH=/app/config/rbac/permissions.json
+      # OAuth (set these in .env file)
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:4050/oauth/google/callback}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+      - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI:-http://localhost:4050/oauth/github/callback}
+      - ENCRYPTION_KEY_HEX=${ENCRYPTION_KEY_HEX:-}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./config:/app/config:ro
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:4050/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - bombardier-network
+
+  # Worker services - each runs in its own container
+  worker-acquisition:
+    build:
+      context: ./backend/workers
+      dockerfile: Dockerfile
+    container_name: bombardier-worker-acquisition
+    command: npm run start:acquisition
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - API_URL=http://api:4050
+    depends_on:
+      - api
+      - redis
+    networks:
+      - bombardier-network
+
+  worker-filtering:
+    build:
+      context: ./backend/workers
+      dockerfile: Dockerfile
+    container_name: bombardier-worker-filtering
+    command: npm run start:filtering
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - API_URL=http://api:4050
+    depends_on:
+      - api
+      - redis
+    networks:
+      - bombardier-network
+
+  worker-research:
+    build:
+      context: ./backend/workers
+      dockerfile: Dockerfile
+    container_name: bombardier-worker-research
+    command: npm run start:research
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - API_URL=http://api:4050
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      - api
+      - redis
+    networks:
+      - bombardier-network
+
+  worker-engagement:
+    build:
+      context: ./backend/workers
+      dockerfile: Dockerfile
+    container_name: bombardier-worker-engagement
+    command: npm run start:engagement
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - API_URL=http://api:4050
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      - api
+      - redis
+    networks:
+      - bombardier-network
+
+  worker-tracking:
+    build:
+      context: ./backend/workers
+      dockerfile: Dockerfile
+    container_name: bombardier-worker-tracking
+    command: npm run start:tracking
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - API_URL=http://api:4050
+    depends_on:
+      - api
+      - redis
+    networks:
+      - bombardier-network
+
+  # Frontend Dashboard
+  dashboard:
+    build:
+      context: ./frontend/dashboard
+      dockerfile: Dockerfile
+    container_name: bombardier-dashboard
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:4050
+    depends_on:
+      - api
+    networks:
+      - bombardier-network
+
+  # ============================================================================
+  # AI/ML Services
+  # ============================================================================
+
+  ml-service:
+    build:
+      context: ./backend/ml-service
+      dockerfile: Dockerfile
+    container_name: bombardier-ml-service
+    ports:
+      - "5050:5000"
+    environment:
+      - PORT=5000
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:5000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - bombardier-network
+
+  browser-service:
+    build:
+      context: ./backend/browser-service
+      dockerfile: Dockerfile
+    container_name: bombardier-browser-service
+    ports:
+      - "5100:5100"
+    environment:
+      - PORT=5100
+      - REDIS_URL=redis://redis:6379
+      - API_URL=http://api:4050
+      - ML_SERVICE_URL=http://ml-service:5000
+      - HEADLESS=true
+      - MAX_BROWSERS=5
+      - PROXY_URL=${PROXY_URL:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    # Increase shared memory for Chromium
+    shm_size: 2gb
+    # Security context for browser
+    security_opt:
+      - seccomp:unconfined
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:5100/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - bombardier-network
+  # ============================================================================
+  # Cloak System - Anti-Detection & Stealth Infrastructure
+  # ============================================================================
+
+  cloak-proxy-manager:
+    build:
+      context: ./backend/services/cloak/proxy-manager
+      dockerfile: Dockerfile
+    container_name: bombardier-cloak-proxy-manager
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+    depends_on:
+      - redis
+    volumes:
+      - ./config/proxies.json:/app/config/proxies.json:ro
+    networks:
+      - bombardier-network
+
+  cloak-fingerprint:
+    build:
+      context: ./backend/services/cloak/fingerprint
+      dockerfile: Dockerfile
+    container_name: bombardier-cloak-fingerprint
+    environment:
+      - LOG_LEVEL=info
+      - FINGERPRINT_CANVAS_NOISE_MIN=0.0001
+      - FINGERPRINT_CANVAS_NOISE_MAX=0.001
+    networks:
+      - bombardier-network
+
+  cloak-timing:
+    build:
+      context: ./backend/services/cloak/timing
+      dockerfile: Dockerfile
+    container_name: bombardier-cloak-timing
+    environment:
+      - LOG_LEVEL=info
+      - TIMING_MIN_DELAY_MS=1000
+      - TIMING_MAX_DELAY_MS=30000
+      - TIMING_CIRCADIAN_ENABLED=true
+    networks:
+      - bombardier-network
+
+  cloak-account-warming:
+    build:
+      context: ./backend/services/cloak/account-warming
+      dockerfile: Dockerfile
+    container_name: bombardier-cloak-account-warming
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+      - ACCOUNT_WARMING_ENABLED=true
+      - ACCOUNT_WARMING_MANUAL_PHASE_DAYS=14
+      - ACCOUNT_WARMING_LIGHT_PHASE_DAYS=14
+      - ACCOUNT_WARMING_MODERATE_PHASE_DAYS=14
+    depends_on:
+      - redis
+    networks:
+      - bombardier-network
+
+  cloak-proxy-scraper:
+    build:
+      context: ./backend/services/cloak/proxy-scraper
+      dockerfile: Dockerfile
+    container_name: bombardier-cloak-proxy-scraper
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - LOG_LEVEL=info
+      - PROXY_SCRAPE_INTERVAL_MINUTES=30
+      - PROXY_MIN_WORKING=100
+      - PROXY_VALIDATION_TIMEOUT_MS=10000
+      - PROXY_VALIDATION_CONCURRENCY=50
+      - TOR_SOCKS_PORT=9050
+      - TOR_CONTROL_PORT=9051
+      - TOR_AUTO_ROTATE=true
+      - TOR_ROTATE_INTERVAL_MINUTES=10
+    depends_on:
+      - redis
+    networks:
+      - bombardier-network
+
+  cloak-vpn-manager:
+    build:
+      context: ./backend/services/cloak/vpn-manager
+      dockerfile: Dockerfile
+    container_name: bombardier-cloak-vpn-manager
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    environment:
+      - LOG_LEVEL=info
+      - VPN_AUTO_CONNECT=true
+      - VPN_PREFERRED_PROTOCOL=openvpn
+    networks:
+      - bombardier-network
+
+  cloak-location-spoof:
+    build:
+      context: ./backend/services/cloak/location-spoof
+      dockerfile: Dockerfile
+    container_name: bombardier-cloak-location-spoof
+    environment:
+      - LOG_LEVEL=info
+      - DEFAULT_COUNTRY=US
+      - RANDOMIZE_WITHIN_COUNTRY=true
+      - SPOOF_TIMEZONE=true
+      - SPOOF_LOCALE=true
+      - SPOOF_GEOLOCATION=true
+    networks:
+      - bombardier-network
+
+  cloak-leak-prevention:
+    build:
+      context: ./backend/services/cloak/leak-prevention
+      dockerfile: Dockerfile
+    container_name: bombardier-cloak-leak-prevention
+    environment:
+      - LOG_LEVEL=info
+      - BLOCK_WEBRTC=true
+      - USE_DNS_OVER_HTTPS=true
+      - DNS_PROVIDER=cloudflare
+      - BLOCK_PLUGIN_ENUMERATION=true
+      - BLOCK_MEDIA_DEVICE_ENUMERATION=true
+    networks:
+      - bombardier-network
+
+  cloak-core:
+    build:
+      context: ./backend/services/cloak/core
+      dockerfile: Dockerfile
+    container_name: bombardier-cloak-core
+    environment:
+      - LOG_LEVEL=info
+      - CLOAK_API_URL=http://api:4050/cloak
+    depends_on:
+      - cloak-fingerprint
+      - cloak-leak-prevention
+      - cloak-location-spoof
+    networks:
+      - bombardier-network
+
+  mission-control:
+    build:
+      context: ./backend/services/mission-control
+      dockerfile: Dockerfile
+    container_name: bombardier-mission-control
+    environment:
+      - LOG_LEVEL=info
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - bombardier-network
+
+  # ============================================================================
+  # Monitoring & Observability (Optional)
+  # ============================================================================
+
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: bombardier-prometheus
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #   networks:
+  #     - bombardier-network
+
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: bombardier-grafana
+  #   ports:
+  #     - "3001:3000"
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #   networks:
+  #     - bombardier-network
+
+volumes:
+  mongodb_data:
+  redis_data:
+    # grafana_data:
+
+networks:
+  bombardier-network:
+    driver: bridge

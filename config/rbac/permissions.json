@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "roles": {
+    "admin": ["*"],
+    "operator": [
+      "profiles.read",
+      "profiles.write",
+      "campaigns.read",
+      "campaigns.write",
+      "messages.read",
+      "messages.write",
+      "messages.deliver",
+      "analytics.read"
+    ],
+    "viewer": [
+      "profiles.read",
+      "campaigns.read",
+      "messages.read",
+      "analytics.read"
+    ]
+  },
+  "permissions": [
+    "profiles.read",
+    "profiles.write",
+    "campaigns.read",
+    "campaigns.write",
+    "messages.read",
+    "messages.write",
+    "messages.deliver",
+    "analytics.read",
+    "system.read",
+    "system.write"
+  ]
+}

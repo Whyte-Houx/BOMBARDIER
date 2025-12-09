@@ -1,0 +1,5 @@
+.container { font-family: system-ui; padding: 20px; }
+.error { color: red; }
+.form { display: flex; flex-direction: column; gap: 8px; max-width: 320px; }
+.passwordRow { display: flex; gap: 8px; }
+.toggle { padding: 6px 10px; }

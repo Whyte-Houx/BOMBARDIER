@@ -1,0 +1,36 @@
+.container {
+  font-family: system-ui;
+  padding: 20px;
+}
+
+.nav {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pushRight {
+  margin-left: auto;
+}
+
+.error {
+  color: red;
+}
+
+.queueItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.progressBarBackground {
+  background: #eee;
+  height: 8px;
+  width: 200px;
+}
+
+.progressBarForeground {
+  background: #4caf50;
+  height: 8px;
+  width: var(--progress-width, 0px);
+}

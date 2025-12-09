@@ -1,0 +1,33 @@
+.container {
+  font-family: system-ui;
+  padding: 20px;
+}
+
+.error { color: red; }
+
+.controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.section { margin-top: 16px; }
+
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.chart { margin-top: 8px; }
+.spark { display: block; }
+
+.legendRow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.legendItem { display: inline-flex; align-items: center; gap: 6px; }
+.legendDot { width: 10px; height: 10px; display: inline-block; }

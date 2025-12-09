@@ -1,0 +1,312 @@
+# CI/CD Pipeline - Bombardier
+# Runs on push to main/develop and pull requests
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ============================================================================
+  # Lint and Type Check
+  # ============================================================================
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install API dependencies
+        working-directory: backend/api
+        run: npm ci
+
+      - name: Lint API
+        working-directory: backend/api
+        run: npm run lint --if-present
+
+      - name: Type check API
+        working-directory: backend/api
+        run: npm run typecheck --if-present
+
+      - name: Install Workers dependencies
+        working-directory: backend/workers
+        run: npm ci
+
+      - name: Lint Workers
+        working-directory: backend/workers
+        run: npm run lint --if-present
+
+      - name: Install Browser Service dependencies
+        working-directory: backend/browser-service
+        run: npm ci
+
+      - name: Type check Browser Service
+        working-directory: backend/browser-service
+        run: npm run typecheck --if-present
+
+      - name: Install Dashboard dependencies
+        working-directory: frontend/dashboard
+        run: npm ci
+
+      - name: Lint Dashboard
+        working-directory: frontend/dashboard
+        run: npm run lint --if-present
+
+  # ============================================================================
+  # Python ML Service Checks
+  # ============================================================================
+  lint-python:
+    name: Lint Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        working-directory: backend/ml-service
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black mypy
+          pip install -r requirements.txt
+
+      - name: Check formatting with Black
+        working-directory: backend/ml-service
+        run: black --check src/ || true
+
+      - name: Lint with flake8
+        working-directory: backend/ml-service
+        run: flake8 src/ --max-line-length=120 --ignore=E501,W503 || true
+
+  # ============================================================================
+  # Unit Tests
+  # ============================================================================
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install root dependencies
+        run: npm ci --ignore-scripts || npm install vitest typescript
+
+      - name: Run unit tests
+        run: npx vitest run tests/unit --reporter=verbose
+
+  # ============================================================================
+  # Integration Tests
+  # ============================================================================
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [test-unit]
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install API dependencies
+        working-directory: backend/api
+        run: npm ci
+
+      - name: Start API server
+        working-directory: backend/api
+        run: npm start &
+        env:
+          MONGO_URL: mongodb://localhost:27017/bombardier_test
+          REDIS_URL: redis://localhost:6379
+          PORT: 4050
+
+      - name: Wait for API
+        run: |
+          for i in {1..30}; do
+            curl -s http://localhost:4050/health && break
+            sleep 2
+          done
+
+      - name: Install test dependencies
+        run: npm install vitest
+
+      - name: Run integration tests
+        run: npx vitest run tests/integration --reporter=verbose
+        env:
+          TEST_API_URL: http://localhost:4050
+
+  # ============================================================================
+  # Build & Push Docker Images
+  # ============================================================================
+  build:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: [lint, lint-python]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push API
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/api
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ghcr.io/${{ github.repository }}/bombardier-api:latest
+            ghcr.io/${{ github.repository }}/bombardier-api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push Workers
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/workers
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ghcr.io/${{ github.repository }}/bombardier-workers:latest
+            ghcr.io/${{ github.repository }}/bombardier-workers:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push ML Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/ml-service
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ghcr.io/${{ github.repository }}/bombardier-ml-service:latest
+            ghcr.io/${{ github.repository }}/bombardier-ml-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push Browser Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/browser-service
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ghcr.io/${{ github.repository }}/bombardier-browser-service:latest
+            ghcr.io/${{ github.repository }}/bombardier-browser-service:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & Push Dashboard
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend/dashboard
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ghcr.io/${{ github.repository }}/bombardier-dashboard:latest
+            ghcr.io/${{ github.repository }}/bombardier-dashboard:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================================================
+  # Security Scan
+  # ============================================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          ignore-unfixed: true
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  # ============================================================================
+  # Deploy to Staging (on develop branch)
+  # ============================================================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [test-integration, build]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy notification
+        run: echo "Would deploy to staging environment"
+        # Add actual deployment steps here:
+        # - Push to container registry
+        # - Deploy to Kubernetes/Docker Swarm
+        # - Run smoke tests
+
+  # ============================================================================
+  # Deploy to Production (on main branch)
+  # ============================================================================
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [test-integration, build, security]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy notification
+        run: echo "Would deploy to production environment"
+        # Add actual deployment steps here:
+        # - Push to container registry
+        # - Deploy to Kubernetes/Docker Swarm
+        # - Run smoke tests
+        # - Notify team

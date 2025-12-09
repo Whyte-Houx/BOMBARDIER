@@ -1,0 +1,21 @@
+{
+    "name": "@bombardier/account-warming",
+    "version": "1.0.0",
+    "description": "Account warming protocol for gradual automation ramp-up",
+    "type": "module",
+    "main": "dist/index.js",
+    "scripts": {
+        "build": "tsc",
+        "dev": "tsx watch src/account-warming.ts",
+        "start": "node dist/account-warming.js"
+    },
+    "dependencies": {
+        "ioredis": "^5.3.2",
+        "pino": "^8.17.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "typescript": "^5.3.3",
+        "tsx": "^4.6.0"
+    }
+}

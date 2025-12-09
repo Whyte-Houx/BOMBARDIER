@@ -1,0 +1,25 @@
+{
+  "title": "API Overview",
+  "panels": [
+    {
+      "type": "graph",
+      "title": "Process CPU",
+      "targets": [{ "expr": "process_cpu_seconds_total" }]
+    },
+    {
+      "type": "graph",
+      "title": "HTTP p95 Duration",
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m])))" }]
+    },
+    {
+      "type": "gauge",
+      "title": "Queue Sizes",
+      "targets": [{ "expr": "sum(queue_size) by (queue)" }]
+    },
+    {
+      "type": "graph",
+      "title": "Worker Processed Total",
+      "targets": [{ "expr": "sum(worker_processed_total) by (queue)" }]
+    }
+  ]
+}

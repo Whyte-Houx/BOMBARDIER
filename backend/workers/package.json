@@ -1,0 +1,20 @@
+{
+  "name": "workers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start:acquisition": "node --loader ts-node/esm src/acquisition-worker.ts",
+    "start:filtering": "node --loader ts-node/esm src/filtering-worker.ts",
+    "start:research": "node --loader ts-node/esm src/research-worker.ts",
+    "start:engagement": "node --loader ts-node/esm src/engagement-worker.ts",
+    "start:tracking": "node --loader ts-node/esm src/tracking-worker.ts"
+  },
+  "dependencies": {
+    "redis": "^4.6.13"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

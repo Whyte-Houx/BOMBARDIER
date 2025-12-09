@@ -1,0 +1,95 @@
+openapi: 3.0.3
+info:
+  title: Bombardier API
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      responses:
+        '200':
+          description: ok
+  /auth/login:
+    post:
+      responses:
+        '200':
+          description: token issued
+  /pipeline/run:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                targetCriteria:
+                  type: object
+                  properties:
+                    platforms:
+                      type: array
+                      items:
+                        type: string
+      responses:
+        '202':
+          description: accepted
+  /metrics:
+    get:
+      responses:
+        '200':
+          description: metrics
+  /profiles:
+    get:
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: list
+  /profiles/{id}/approve:
+    post:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: approved
+  /profiles/{id}/reject:
+    post:
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: rejected
+  /oauth/{provider}/start:
+    get:
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: start data
+  /oauth/{provider}/callback:
+    get:
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: callback handled
