@@ -1,8 +1,9 @@
 # Bombardier System Architecture - Complete Analysis
 
-> **Version:** 2.0.0
+> **Version:** 2.1.0
 > **Last Updated:** December 10, 2024
 > **Status:** Production-Ready
+> **Security Audit:** ✅ 0 Vulnerabilities
 
 ---
 
@@ -244,24 +245,29 @@ User Request
 
 ## 10. Gap Analysis & Recommendations
 
-### Addressed This Session
+### 10.1 Addressed This Session
 
-- ✅ JWT authentication with env toggle
-- ✅ Cloak endpoint protection
-- ✅ Metrics endpoint security
-- ✅ Health check hierarchy
-- ✅ Rate limiting
-- ✅ Audit logging
-- ✅ **Webhook system for external notifications** (NEW)
-- ✅ **API versioning (/v1/ prefix)** (NEW)
-- ✅ **Advanced profile filtering (boolean queries)** (NEW)
+| Feature | Status | Details |
+|---------|--------|----------|
+| JWT authentication | ✅ Complete | Environment-controlled toggle |
+| Cloak endpoint protection | ✅ Complete | RBAC permissions required |
+| Metrics endpoint security | ✅ Complete | Token/API key required |
+| Health check hierarchy | ✅ Complete | Basic + detailed + K8s probes |
+| Rate limiting | ✅ Complete | 100 req/min per user/IP |
+| Audit logging | ✅ Complete | Sensitive operations logged |
+| Webhook system | ✅ Complete | 16 events, HMAC-signed |
+| API versioning | ✅ Complete | /v1 prefix, deprecation headers |
+| Advanced profile filtering | ✅ Complete | Boolean query language |
+| Security vulnerabilities | ✅ Resolved | 0 vulnerabilities (Dec 10, 2024) |
 
-### Future Considerations
+### 10.2 Future Considerations
 
-- ⏳ OAuth re-enablement (credentials needed)
-- ⏳ WebSocket notifications for real-time UI updates
-- ⏳ API v2 planning (when needed)
-- ⏳ Rate limiting per-endpoint customization
+| Feature | Priority | Notes |
+|---------|----------|-------|
+| OAuth re-enablement | Medium | Requires credentials configuration |
+| WebSocket notifications | Medium | Real-time UI updates |
+| API v2 planning | Low | When breaking changes needed |
+| Per-endpoint rate limits | Low | Customization for specific routes |
 
 ---
 
@@ -275,6 +281,7 @@ User Request
 | **Security** | HMAC-SHA256 payload signing |
 | **Reliability** | Exponential backoff retry (up to 4 attempts) |
 | **Management** | Full CRUD + test + secret regeneration |
+| **Endpoints** | 8 REST endpoints at `/v1/webhooks` |
 
 ### 11.2 API Versioning
 
@@ -293,3 +300,87 @@ User Request
 | **Operators** | >, >=, <, <=, wildcards |
 | **Structured Filters** | Status, platform, ranges, dates |
 | **Field Mapping** | Aliases (e.g., `bot` → `botProbability`) |
+| **Endpoints** | 3 new endpoints at `/v1/profiles` |
+
+---
+
+## 12. Test Coverage
+
+### 12.1 Test Suites
+
+| Suite | Tests | Status |
+|-------|-------|--------|
+| `tests/api/webhooks.test.ts` | 16 | ✅ Passing |
+| `tests/api/versioning.test.ts` | 14 | ✅ Passing |
+| `tests/api/advanced-filter.test.ts` | 24 | ✅ Passing |
+| `tests/unit/bot-detection.test.ts` | 8 | ✅ Passing |
+| `tests/backend/api/health.test.ts` | 1 | ✅ Passing |
+| `tests/backend/api/dto.test.ts` | 2 | ✅ Passing |
+| `tests/contracts/api.pact.test.ts` | 1 | ✅ Passing |
+| `tests/integration/worker-flow.test.ts` | 2 | ✅ Passing |
+| **Total Unit/Contract Tests** | **68+** | ✅ All Passing |
+
+### 12.2 Integration Tests
+
+Integration tests require running API server at `localhost:4050`:
+
+```bash
+# Start server first
+docker-compose up -d api
+
+# Run integration tests
+npm run test:integration
+```
+
+---
+
+## 13. Dependencies & Security
+
+### 13.1 Core Dependencies
+
+| Package | Version | Purpose |
+|---------|---------|----------|
+| fastify | ^4.27.0 | HTTP framework |
+| mongoose | ^8.6.2 | MongoDB ODM |
+| zod | ^3.23.8 | Schema validation |
+| argon2 | ^0.30.3 | Password hashing |
+| jose | ^5.2.2 | JWT handling |
+
+### 13.2 Security Audit
+
+| Area | Status | Date |
+|------|--------|------|
+| Root dependencies | 0 vulnerabilities | Dec 10, 2024 |
+| Backend API dependencies | 0 vulnerabilities | Dec 10, 2024 |
+| Vitest | Updated to v4.0.15 | Dec 10, 2024 |
+| Pact | Updated to v16.0.2 | Dec 10, 2024 |
+
+---
+
+## 14. Quick Reference
+
+### 14.1 API Base URLs
+
+```text
+Production:  https://api.bombardier.app/v1
+Development: http://localhost:4050/v1
+Health:      http://localhost:4050/health
+Metrics:     http://localhost:4050/metrics
+```
+
+### 14.2 Key Environment Variables
+
+```bash
+AUTH_DISABLED=false           # Enable production auth
+JWT_SECRET=<64-char-secret>   # Required for production
+INTERNAL_API_KEY=<api-key>    # For worker authentication
+PROMETHEUS_TOKEN=<token>      # For metrics access
+```
+
+### 14.3 RBAC Roles
+
+| Role | Permissions |
+|------|-------------|
+| `admin` | All permissions (`*`) |
+| `operator` | profiles.*, campaigns.*, messages.*, analytics.read, cloak.*, webhooks.* |
+| `viewer` | *.read only |
