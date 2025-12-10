@@ -1,85 +1,245 @@
-# Backend System Architecture & Analysis Report
+# Bombardier System Architecture - Complete Analysis
 
-> **Date:** December 10, 2024
-> **Version:** 1.0.0
-> **Status:** Production-Ready (Security Hardened)
-
----
-
-## 1. Executive Summary
-
-The **Bombardier Backend** is a high-performance, Fastify-based system designed for automated target acquisition and engagement. It follows a microservices-ready architecture with a centralized API gateway (monolithic deployment currently).
-
-**Key Strengths:**
-
-- **Robust Security:** Dual-mode auth (JWT/Mock), granular RBAC (Role-Based Access Control), and internal API keys for worker services.
-- **Anti-Detection Core:** Dedicated `/cloak` module for managing fingerprints, proxies, and VPNs (critical for scraping operations).
-- **Real-time Capability:** Native SSE (`/tracking/stream`) and WebSocket (`/tracking/ws`) support for live feedback loops.
-- **Scalability:** Worker-based job queues (`queue:acquisition`, `queue:filtering`, etc.) decoupled from the main API.
+> **Version:** 2.0.0
+> **Last Updated:** December 10, 2024
+> **Status:** Production-Ready
 
 ---
 
-## 2. API Endpoint Analysis
+## 1. System Overview
 
-### Core Business Logic
+Bombardier is a distributed target acquisition and engagement platform consisting of:
 
-| Domain | Role | Key Functionality | Notes |
-|--------|------|-------------------|-------|
-| **Campaigns** | Orchestrator | CRUD, State Machine (Draft -> Active -> Paused -> Completed) | Tightly coupled with `queue:acquisition`. Includes 10s caching for status counts. |
-| **Pipeline** | Executor | `/run` shortcut for immediate execution | Directly enqueues jobs, skipping draft phase. |
-| **Profiles** | Data Asset | Workflow Engine (Pending -> Approved/Rejected -> Engaged) | Supports batch operations (max 100). "Interests" array is key for AI filtering. |
-| **Messages** | Communication | Content Management | Linked to profiles and campaigns. Simple status tracking. |
-| **Analytics** | Intelligence | Aggregation & Reporting | **Internal Secure Endpoints:** `/event` & `/metric` (Worker-only). |
-
-### Infrastructure & Security
-
-| Domain | Role | Key Functionality | Notes |
-|--------|------|-------------------|-------|
-| **Auth** | Gatekeeper | JWT Session Management | **Dual Mode**: Dev (Mock Admin) / Prod (Real verification). |
-| **Cloak** | Stealth | Proxy/VPN/Fingerprint Management | **New:** All endpoints secured with `cloak.*` permissions. |
-| **Health** | Observability | Liveness/Readiness Probes | **New:** `/health/detailed` (Protected) vs `/health/live` (Public). |
-| **Metrics** | Observability | Prometheus Exporters | Protected by token/RBAC. |
+| Component | Technology | Port | Purpose |
+|-----------|------------|------|---------|
+| **API Gateway** | Fastify (Node.js) | 4050 | User-facing REST API |
+| **ML Service** | FastAPI (Python) | 5000 | AI/NLP analysis |
+| **Browser Service** | Fastify + Playwright | 5100 | Web scraping & automation |
+| **Workers** | Node.js | — | Background job processing |
+| **Mission Control** | Node.js | — | Workflow orchestration |
+| **Cloak Services** | Node.js | — | Anti-detection suite |
 
 ---
 
-## 3. Data Flow & Dependencies
+## 2. API Gateway (Port 4050)
 
-### Request Lifecycle
+### 2.1 Endpoint Inventory
 
-1. **Ingress:** Client request -> Nginx/Docker Router -> Fastify API.
-2. **Security Layer:** `rateLimit` -> `jwtPlugin` (Authentication) -> `rbacPlugin` (Authorization).
-3. **Controller Layer:** Zod Validation -> Business Logic.
-4. **Data Layer:** MongoDB (Persistence) / Redis (Cache & Queues).
-5. **Audit:** Sensitive actions logged via `onResponse` hook.
+| Category | Endpoints | Auth | Key Features |
+|----------|-----------|------|--------------|
+| **Auth** | 7 | Mixed | JWT sessions, OAuth, key rotation |
+| **Campaigns** | 10 | ✅ RBAC | Full CRUD + state machine |
+| **Profiles** | 10 | ✅ RBAC | Batch operations, search |
+| **Messages** | 3 | ✅ RBAC | Status tracking |
+| **Analytics** | 6 | ✅ RBAC + API Key | Real-time + aggregation |
+| **Cloak** | 11 | ✅ RBAC | Proxy/VPN/fingerprint control |
+| **Tracking** | 2 | ✅ RBAC | SSE + WebSocket streams |
+| **Health** | 4 | Mixed | Kubernetes probes |
+| **Metrics** | 1 | ✅ Token | Prometheus export |
+| **Pipeline** | 1 | ✅ RBAC | Quick campaign launch |
+| **OAuth** | 2 | ❌ | Social login (suspended) |
+| **Total** | **59** | — | — |
 
-### Worker Integration
+### 2.2 Security Model
 
-* **Trigger:** API pushes to Redis List (`queue:*`).
-- **Execution:** Python/Node workers process jobs.
-- **Feedback:** Workers call back to API (`POST /analytics/event`) using `X-Api-Key`.
+```
+Request Flow:
+┌─────────────────────────────────────────────────────────────┐
+│  Client → Rate Limiter → JWT Plugin → RBAC Plugin → Route  │
+└─────────────────────────────────────────────────────────────┘
+
+Authentication Modes:
+┌────────────┬────────────────────────────────────────────────┐
+│ Mode       │ Behavior                                       │
+├────────────┼────────────────────────────────────────────────┤
+│ Production │ Real JWT verification (HS256)                  │
+│ Development│ Mock admin user injection (AUTH_DISABLED=true) │
+│ Internal   │ API Key (X-Api-Key header) for workers         │
+└────────────┴────────────────────────────────────────────────┘
+```
 
 ---
 
-## 4. Gap Analysis & Recommendations
+## 3. ML Service (Port 5000)
 
-### Missing Features (Flagged)
+### 3.1 Endpoints
 
-1. **OAuth Suspension**: The `/oauth` routes are explicitly marked "SUSPENDED".
-    - *Impact*: Social login is currently dead code.
-    - *Recommendation*: Re-enable once provider credentials are secured in prod env.
-2. **Webhooks**: No outbound webhook system for external integrations (e.g., Slack notifications on lead found).
-3. **Advanced Filtering**: Profile search is basic (`/search` text or `/find-by-interests`). No complex boolean logic (AND/OR).
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/health` | Service health |
+| POST | `/analyze/profile` | Full profile analysis |
+| POST | `/detect/bot` | Bot probability scoring |
+| POST | `/analyze/sentiment` | Text sentiment (-1 to +1) |
+| POST | `/extract/interests` | Topic/interest extraction |
+| POST | `/generate/message-context` | Personalization hints |
 
-### Security Concerns (addressed, to monitor)
+### 3.2 Analyzers
 
-1. **Rate Limiting**: Newly implemented. Monitor logs for `RATE_LIMIT_EXCEEDED` to tune the 100 req/min threshold.
-2. **Internal Key Rotation**: `INTERNAL_API_KEY` is an env var. Requires restart to rotate. Consider DB-backed keys for zero-downtime rotation.
+- **BotDetector**: Heuristic rules + metadata analysis
+- **SentimentAnalyzer**: VADER-based sentiment scoring
+- **InterestExtractor**: Keyword + NER extraction
+- **ProfileScorer**: Composite quality scoring
 
 ---
 
-## 5. Conclusion
+## 4. Browser Service (Port 5100)
 
-The backend is **structurally sound and secure**. The separation of concerns between the API (User/State management) and Workers (Heavy lifting) is excellent. The recent security patches (Auth, Cloak, Metrics) have closed the major vulnerability gaps.
+### 4.1 Endpoints
 
-**Readiness for UI:**
-The API is fully ready to support the proposed "Chat Interface" UI. The real-time streams (`/tracking/*`) will be crucial for the "living system" feel of the chat interface.
+| Category | Endpoints | Purpose |
+|----------|-----------|---------|
+| **Scraping** | 4 | Profile, posts, search, batch |
+| **Messaging** | 2 | Send DM, check responses |
+| **Sessions** | 3 | Create, check, close |
+
+### 4.2 Supported Platforms
+
+- Twitter/X
+- LinkedIn
+- Reddit
+- Instagram
+
+### 4.3 Anti-Detection Features
+
+- Playwright stealth plugins
+- Fingerprint randomization
+- Proxy injection per session
+- Session persistence (Redis)
+
+---
+
+## 5. Worker Pipeline
+
+### 5.1 Queue Architecture
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                       Redis Queues                                 │
+├─────────────────┬─────────────────┬─────────────────┬─────────────┤
+│ queue:acquisition│ queue:filtering │ queue:research  │ queue:engage│
+│        ↓         │        ↓        │        ↓        │      ↓      │
+│  ┌───────────┐   │  ┌───────────┐  │  ┌───────────┐  │  ┌────────┐ │
+│  │ Acquisition│   │  │ Filtering │  │  │ Research  │  │  │Engage  │ │
+│  │  Worker   │   │  │  Worker   │  │  │  Worker   │  │  │Worker  │ │
+│  └───────────┘   │  └───────────┘  │  └───────────┘  │  └────────┘ │
+│        ↓         │        ↓        │        ↓        │      ↓      │
+│   [Profiles]     │  [Filtered]     │ [Researched]    │ [Engaged]   │
+└─────────────────┴─────────────────┴─────────────────┴─────────────┘
+                              ↓
+                    queue:tracking → Tracking Worker
+```
+
+### 5.2 Worker Responsibilities
+
+| Worker | Input | Process | Output |
+|--------|-------|---------|--------|
+| **Acquisition** | Campaign criteria | Scrape platforms for targets | Raw profiles |
+| **Filtering** | Raw profiles | Bot detection, quality scoring | Approved profiles |
+| **Research** | Approved profiles | Deep analysis, interest extraction | Enriched profiles |
+| **Engagement** | Enriched profiles | Generate & send messages | Sent messages |
+| **Tracking** | Sent messages | Monitor responses, update status | Analytics events |
+
+---
+
+## 6. Mission Control
+
+### 6.1 Bombing Methods
+
+| Method | Flow | Use Case |
+|--------|------|----------|
+| **DR** | Acquisition → Filtering → Research → Engagement → Tracking | Full lifecycle |
+| **IVM** | Acquisition → Research → Filtering → (Optional Engagement) | Lead qualification |
+
+### 6.2 Trigger
+
+```json
+// Push to Redis: queue:mission-control:start
+{
+  "campaignId": "camp_123",
+  "method": "DR",
+  "targetCriteria": { "interests": ["tech"] },
+  "cloakConfig": { "location": "US" }
+}
+```
+
+---
+
+## 7. Cloak Anti-Detection Suite
+
+### 7.1 Services
+
+| Service | Location | Function |
+|---------|----------|----------|
+| **Proxy Manager** | `cloak/proxy-manager/` | Rotation, health monitoring |
+| **Fingerprint Engine** | `cloak/fingerprint/` | Canvas, WebGL, audio fingerprints |
+| **Cloak Core** | `cloak/core/` | Unified session + leak prevention |
+| **VPN Manager** | `cloak/vpn/` | OpenVPN/Tor integration |
+| **Location Spoofer** | `cloak/location/` | Timezone, locale, geolocation |
+
+### 7.2 API Endpoints (via /cloak/*)
+
+- Status monitoring
+- Fingerprint generation
+- Proxy acquisition
+- VPN connect/disconnect
+- Location spoofing
+- Leak testing
+
+---
+
+## 8. Configuration Files
+
+| File | Purpose |
+|------|---------|
+| `config/rbac/permissions.json` | Role-permission mappings |
+| `config/oauth/providers.json` | OAuth provider configs |
+| `config/proxies.json` | Proxy server list |
+| `.env` / `.env.example` | Environment variables |
+
+---
+
+## 9. Data Flow Summary
+
+```
+User Request
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         API GATEWAY (4050)                          │
+│  Auth → RBAC → Validation → Handler → Response                     │
+└───────────────────────────────┬─────────────────────────────────────┘
+                                │
+        ┌───────────────────────┼───────────────────────┐
+        ▼                       ▼                       ▼
+┌───────────────┐       ┌───────────────┐       ┌───────────────┐
+│  MongoDB      │       │    Redis      │       │  Workers      │
+│  (Persist)    │       │ (Cache/Queue) │       │  (Process)    │
+└───────────────┘       └───────────────┘       └───────┬───────┘
+                                                        │
+                        ┌───────────────────────────────┤
+                        ▼                               ▼
+                ┌───────────────┐               ┌───────────────┐
+                │  ML Service   │               │Browser Service│
+                │    (5000)     │               │    (5100)     │
+                └───────────────┘               └───────────────┘
+```
+
+---
+
+## 10. Gap Analysis & Recommendations
+
+### Addressed This Session
+
+- ✅ JWT authentication with env toggle
+- ✅ Cloak endpoint protection
+- ✅ Metrics endpoint security
+- ✅ Health check hierarchy
+- ✅ Rate limiting
+- ✅ Audit logging
+
+### Future Considerations
+
+- ⏳ OAuth re-enablement (credentials needed)
+- ⏳ Webhook system for external notifications
+- ⏳ API versioning (/v1/ prefix)
+- ⏳ Advanced profile filtering (boolean queries)
