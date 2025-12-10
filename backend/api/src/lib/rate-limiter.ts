@@ -11,7 +11,9 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { Redis } from 'ioredis';
+import { createClient } from 'redis';
+
+type RedisClient = ReturnType<typeof createClient>;
 
 // ============================================================================
 // Types
@@ -210,7 +212,7 @@ export const defaultRateLimitConfig: RateLimitConfig = {
 // ============================================================================
 
 export class AdvancedRateLimiter {
-    private redis: Redis | null = null;
+    private redis: RedisClient | null = null;
     private config: RateLimitConfig;
     private localFallback: Map<string, { count: number; resetAt: number }> = new Map();
 
@@ -228,7 +230,7 @@ export class AdvancedRateLimiter {
     /**
      * Set Redis client for distributed rate limiting
      */
-    setRedis(redis: Redis): void {
+    setRedis(redis: RedisClient): void {
         this.redis = redis;
     }
 
@@ -310,17 +312,17 @@ export class AdvancedRateLimiter {
         const resetAt = new Date(now + windowMs);
 
         try {
-            // Use sliding window counter
+            // Use sliding window counter with node-redis camelCase methods
             const multi = this.redis.multi();
 
             // Remove old entries
-            multi.zremrangebyscore(key, 0, now - windowMs);
+            multi.zRemRangeByScore(key, 0, now - windowMs);
 
             // Count current entries
-            multi.zcard(key);
+            multi.zCard(key);
 
             // Add new entry with score = timestamp
-            multi.zadd(key, now.toString(), `${now}-${Math.random()}`);
+            multi.zAdd(key, { score: now, value: `${now}-${Math.random()}` });
 
             // Set expiry
             multi.expire(key, windowSeconds + 1);
@@ -331,7 +333,8 @@ export class AdvancedRateLimiter {
                 return this.checkLocal(key, limit, windowSeconds, cost);
             }
 
-            const currentCount = (results[1]?.[1] as number) || 0;
+            // node-redis returns results directly, not as [error, result] tuples
+            const currentCount = (results[1] as number) || 0;
             const newCount = currentCount + cost;
             const remaining = Math.max(0, limit - newCount);
             const allowed = newCount <= limit;
@@ -445,7 +448,7 @@ export class AdvancedRateLimiter {
 
 export async function rateLimitPlugin(
     app: FastifyInstance,
-    options: { redis?: Redis; config?: Partial<RateLimitConfig> } = {}
+    options: { redis?: RedisClient; config?: Partial<RateLimitConfig> } = {}
 ): Promise<void> {
     const limiter = new AdvancedRateLimiter(options.config);
 

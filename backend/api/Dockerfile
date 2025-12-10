@@ -1,6 +1,9 @@
 FROM node:20.12.2-alpine AS build
 WORKDIR /app
 
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
 # Optimize layer caching: Install dependencies first
 COPY package.json package-lock.json* ./
 RUN npm config set fetch-retries 5 && \
@@ -14,17 +17,28 @@ COPY tsconfig.json ./
 COPY src ./src
 
 # Build application
-RUN npm run build && npm prune --omit=dev
+RUN npm run build
 
-FROM node:20.18.3-alpine
+# Production stage - same base to ensure binary compatibility
+FROM node:20.12.2-alpine AS production
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=4050
 
+# Install build dependencies for native modules (argon2)
+RUN apk add --no-cache python3 make g++
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install production dependencies only (will rebuild argon2 natively)
+RUN npm ci --omit=dev || npm install --omit=dev
+
 # Copy built artifacts
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/node_modules ./node_modules
-COPY package.json ./
+
+# Clean up build dependencies to reduce image size
+RUN apk del python3 make g++ && rm -rf /var/cache/apk/*
 
 USER node
 EXPOSE 4050
