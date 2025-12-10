@@ -59,6 +59,10 @@ services:
       - JWT_KEY_TTL_DAYS=30
       - JWT_ROTATE_MAX_KEYS=3
       - RBAC_CONFIG_PATH=/app/config/rbac/permissions.json
+      # Authentication (set AUTH_DISABLED=false in production)
+      - AUTH_DISABLED=${AUTH_DISABLED:-true}
+      - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY:-bombardier-internal-key-dev}
       # OAuth (set these in .env file)
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
@@ -386,7 +390,6 @@ services:
       - redis
     networks:
       - bombardier-network
-
   # ============================================================================
   # Monitoring & Observability (Optional)
   # ============================================================================

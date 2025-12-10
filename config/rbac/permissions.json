@@ -1,7 +1,10 @@
 {
-  "version": 1,
+  "version": 2,
+  "description": "RBAC permissions configuration for Bombardier API",
   "roles": {
-    "admin": ["*"],
+    "admin": [
+      "*"
+    ],
     "operator": [
       "profiles.read",
       "profiles.write",
@@ -10,13 +13,16 @@
       "messages.read",
       "messages.write",
       "messages.deliver",
-      "analytics.read"
+      "analytics.read",
+      "cloak.read",
+      "cloak.write"
     ],
     "viewer": [
       "profiles.read",
       "campaigns.read",
       "messages.read",
-      "analytics.read"
+      "analytics.read",
+      "cloak.read"
     ]
   },
   "permissions": [
@@ -28,6 +34,9 @@
     "messages.write",
     "messages.deliver",
     "analytics.read",
+    "analytics.write",
+    "cloak.read",
+    "cloak.write",
     "system.read",
     "system.write"
   ]

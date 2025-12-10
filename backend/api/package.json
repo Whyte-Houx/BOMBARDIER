@@ -12,6 +12,7 @@
   "dependencies": {
     "@fastify/cookie": "^9.3.1",
     "@fastify/cors": "^8.5.0",
+    "@fastify/rate-limit": "^9.1.0",
     "@fastify/websocket": "^8.3.1",
     "argon2": "^0.30.3",
     "fastify": "^4.27.0",

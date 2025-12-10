@@ -1,11 +1,38 @@
-import { FastifyPluginAsync } from "fastify";
+import { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { AnalyticsRepo, CampaignStatusRepo } from "../repos.js";
 import { AnalyticsQuerySchema } from "../dto.js";
 
 /**
  * Analytics Routes
  * Per dev_docs/technical_specs/architecture.md - Analytics & Reporting
+ * 
+ * Security:
+ * - GET endpoints require `analytics.read` permission
+ * - POST `/event` and `/metric` require internal API key (worker endpoints)
  */
+
+// Helper to verify internal API key for worker endpoints
+function requireInternalApiKey(fastify: any) {
+    return async (request: FastifyRequest, reply: FastifyReply): Promise<boolean> => {
+        // Check for internal API key first
+        if (fastify.verifyInternalApiKey(request)) {
+            return true;
+        }
+
+        // Fall back to authenticated admin/operator
+        const user = (request as any).user;
+        if (user && (user.role === "admin" || user.role === "operator")) {
+            return true;
+        }
+
+        reply.code(403).send({
+            error: "FORBIDDEN",
+            message: "This endpoint requires internal API key or admin privileges"
+        });
+        return false;
+    };
+}
+
 export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
     // Get aggregated metrics
     fastify.get("/metrics", async (request: any, reply: any) => {
@@ -17,7 +44,7 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         const endDate = (request.query as any).endDate ? new Date((request.query as any).endDate) : undefined;
 
         const metrics = await AnalyticsRepo.getMetrics({ campaignId, startDate, endDate });
-        reply.send(metrics);
+        reply.send({ success: true, data: metrics });
     });
 
     // Get campaign summary stats
@@ -42,40 +69,58 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         ]);
 
         reply.send({
-            campaignId,
-            period: { startDate, endDate },
-            profiles,
-            messages,
-            aggregate,
-            conversionRate: Math.round(conversionRate * 100) / 100
+            success: true,
+            data: {
+                campaignId,
+                period: { startDate, endDate },
+                profiles,
+                messages,
+                aggregate,
+                conversionRate: Math.round(conversionRate * 100) / 100
+            }
         });
     });
 
-    // Record an analytics event (internal use by workers)
+    /**
+     * POST /event
+     * Record an analytics event (internal use by workers)
+     * 
+     * SECURITY: Requires internal API key (X-Api-Key header) or admin role
+     */
     fastify.post("/event", async (request: any, reply: any) => {
-        // No permission check - internal endpoint for workers
+        const permitted = await requireInternalApiKey(fastify)(request, reply);
+        if (!permitted) return;
+
         const { type, campaignId, userId, platform, metrics } = request.body as any;
 
         if (!type) {
-            reply.code(400).send({ error: "MISSING_TYPE" });
+            reply.code(400).send({ error: "MISSING_TYPE", message: "Event type is required" });
             return;
         }
 
         await AnalyticsRepo.recordEvent(type, { campaignId, userId, platform }, metrics || {});
-        reply.code(201).send({ recorded: true });
+        reply.code(201).send({ success: true, recorded: true });
     });
 
-    // Record a metric (internal use by workers)
+    /**
+     * POST /metric
+     * Record a metric (internal use by workers)
+     * 
+     * SECURITY: Requires internal API key (X-Api-Key header) or admin role
+     */
     fastify.post("/metric", async (request: any, reply: any) => {
+        const permitted = await requireInternalApiKey(fastify)(request, reply);
+        if (!permitted) return;
+
         const { campaignId, userId, platform, metrics } = request.body as any;
 
         if (!metrics || typeof metrics !== "object") {
-            reply.code(400).send({ error: "INVALID_METRICS" });
+            reply.code(400).send({ error: "INVALID_METRICS", message: "Metrics object is required" });
             return;
         }
 
         await AnalyticsRepo.recordMetric({ campaignId, userId, platform }, metrics);
-        reply.code(201).send({ recorded: true });
+        reply.code(201).send({ success: true, recorded: true });
     });
 
     // Get realtime stats (for dashboard)
@@ -101,12 +146,15 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         reply.send({
-            period: "last_hour",
-            totalEvents,
-            profilesProcessed,
-            messagesSent,
-            responsesReceived,
-            timestamp: new Date().toISOString()
+            success: true,
+            data: {
+                period: "last_hour",
+                totalEvents,
+                profilesProcessed,
+                messagesSent,
+                responsesReceived,
+                timestamp: new Date().toISOString()
+            }
         });
     });
 
@@ -118,22 +166,25 @@ export const analyticsRoutes: FastifyPluginAsync = async (fastify) => {
         // This would check worker health in production
         // For now, return simulated status
         reply.send({
-            status: "healthy",
-            workers: {
-                acquisition: { status: "running", lastHeartbeat: new Date().toISOString() },
-                filtering: { status: "running", lastHeartbeat: new Date().toISOString() },
-                research: { status: "running", lastHeartbeat: new Date().toISOString() },
-                engagement: { status: "running", lastHeartbeat: new Date().toISOString() },
-                tracking: { status: "running", lastHeartbeat: new Date().toISOString() }
-            },
-            queues: {
-                acquisition: { pending: 0, processing: 0 },
-                filtering: { pending: 0, processing: 0 },
-                research: { pending: 0, processing: 0 },
-                engagement: { pending: 0, processing: 0 },
-                tracking: { pending: 0, processing: 0 }
-            },
-            timestamp: new Date().toISOString()
+            success: true,
+            data: {
+                status: "healthy",
+                workers: {
+                    acquisition: { status: "running", lastHeartbeat: new Date().toISOString() },
+                    filtering: { status: "running", lastHeartbeat: new Date().toISOString() },
+                    research: { status: "running", lastHeartbeat: new Date().toISOString() },
+                    engagement: { status: "running", lastHeartbeat: new Date().toISOString() },
+                    tracking: { status: "running", lastHeartbeat: new Date().toISOString() }
+                },
+                queues: {
+                    acquisition: { pending: 0, processing: 0 },
+                    filtering: { pending: 0, processing: 0 },
+                    research: { pending: 0, processing: 0 },
+                    engagement: { pending: 0, processing: 0 },
+                    tracking: { pending: 0, processing: 0 }
+                },
+                timestamp: new Date().toISOString()
+            }
         });
     });
 };

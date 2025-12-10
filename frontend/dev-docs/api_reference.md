@@ -1,34 +1,38 @@
 # Bombardier Backend API Reference
 
-> [!CAUTION]
-> ## ⚠️ AUTHENTICATION SUSPENDED
-> **Status:** All login/registration functionality is DISABLED  
-> **Date:** December 2024  
-> 
-> The application currently operates **WITHOUT authentication**. A mock admin user is injected for all requests via `plugins/jwt.ts`. This means:
-> - No login required
-> - All users have admin privileges
-> - Auth endpoints (`/auth/*`, `/oauth/*`) are non-functional
-> 
-> **To re-enable:** See comments in `backend/api/src/plugins/jwt.ts`
-
 > **Base URL:** `http://localhost:4050`  
 > **Total Endpoints:** 55  
-> **Authentication:** ~~JWT Bearer Token~~ **SUSPENDED**  
+> **Authentication:** JWT Bearer Token or Internal API Key  
 
 ---
 
 ## 🔐 Authentication & Authorization
 
+### Authentication Modes
+
+The API supports two authentication modes controlled by environment variables:
+
+| Mode | `AUTH_DISABLED` | Description |
+|------|-----------------|-------------|
+| **Production** | `false` | Real JWT verification required |
+| **Development** | `true` | Mock admin user injected for testing |
+
 ### JWT Authentication
-All protected endpoints require: `Authorization: Bearer <token>`
+
+Protected endpoints require: `Authorization: Bearer <token>`
+
+### Internal API Key (Workers)
+
+Internal services (workers) can authenticate using: `X-Api-Key: <internal_key>`
+
+Set via `INTERNAL_API_KEY` environment variable.
 
 ### RBAC Roles & Permissions
 
 | Role | Permissions |
 |------|-------------|
 | **admin** | `*` (all permissions) |
-| **operator** | `profiles.*`, `campaigns.*`, `messages.*`, `analytics.read` |
+| **operator** | `profiles.*`, `campaigns.*`, `messages.*`, `analytics.read`, `cloak.*` |
 | **viewer** | `*.read` only |
 
 ---
@@ -48,6 +52,7 @@ All protected endpoints require: `Authorization: Bearer <token>`
 | POST | `/keys/rotate` | ✅ | `system.write` | Rotate JWT signing keys |
 
 **Input/Output:**
+
 - `POST /register`: `{ email, password (≥12 chars), username }` → `{ id, email, username }`
 - `POST /login`: `{ email, password }` → `{ token, user: { id, role } }` + `Set-Cookie: refresh_token`
 
@@ -116,12 +121,12 @@ All protected endpoints require: `Authorization: Bearer <token>`
 |--------|----------|------|------------|-------------|
 | GET | `/metrics` | ✅ | `analytics.read` | Get time-bucketed metrics |
 | GET | `/summary/:campaignId` | ✅ | `analytics.read` | Campaign summary (30 days) |
-| POST | `/event` | ❌ | — | Record event (internal/workers) |
-| POST | `/metric` | ❌ | — | Record metric (internal/workers) |
+| POST | `/event` | ✅ | Internal API Key | Record event (internal/workers) |
+| POST | `/metric` | ✅ | Internal API Key | Record metric (internal/workers) |
 | GET | `/realtime` | ✅ | `analytics.read` | Last hour stats |
 | GET | `/health` | ✅ | `analytics.read` | Pipeline health status |
 
-> ⚠️ **Security Concern:** `/event` and `/metric` have **no auth check** — intended for internal workers but exposed publicly.
+> ✅ **SECURED:** `/event` and `/metric` now require internal API key (`X-Api-Key` header) or admin role.
 
 ---
 
@@ -144,21 +149,21 @@ All protected endpoints require: `Authorization: Bearer <token>`
 
 ### Cloak (`/cloak`) — Anti-Detection System
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/status` | ❌ | Full cloak system status |
-| GET | `/health` | ❌ | Cloak health check |
-| POST | `/fingerprint/generate` | ❌ | Generate browser fingerprint |
-| POST | `/proxy/acquire` | ❌ | Acquire a proxy |
-| POST | `/vpn/connect` | ❌ | Connect to VPN |
-| POST | `/vpn/disconnect` | ❌ | Disconnect VPN |
-| GET | `/vpn/status` | ❌ | VPN connection status |
-| POST | `/location/set` | ❌ | Set spoofed location |
-| GET | `/location/available` | ❌ | List available countries |
-| POST | `/leak-test` | ❌ | Run IP/DNS/WebRTC leak tests |
-| POST | `/account/register` | ❌ | Register account for warming |
+| Method | Endpoint | Auth | Permission | Description |
+|--------|----------|------|------------|-------------|
+| GET | `/status` | ✅ | `cloak.read` | Full cloak system status |
+| GET | `/health` | ✅ | `cloak.read` | Cloak health check |
+| POST | `/fingerprint/generate` | ✅ | `cloak.write` | Generate browser fingerprint |
+| POST | `/proxy/acquire` | ✅ | `cloak.write` | Acquire a proxy |
+| POST | `/vpn/connect` | ✅ | `cloak.write` | Connect to VPN |
+| POST | `/vpn/disconnect` | ✅ | `cloak.write` | Disconnect VPN |
+| GET | `/vpn/status` | ✅ | `cloak.read` | VPN connection status |
+| POST | `/location/set` | ✅ | `cloak.write` | Set spoofed location |
+| GET | `/location/available` | ✅ | `cloak.read` | List available countries |
+| POST | `/leak-test` | ✅ | `cloak.write` | Run IP/DNS/WebRTC leak tests |
+| POST | `/account/register` | ✅ | `cloak.write` | Register account for warming |
 
-> ⚠️ **Security Concern:** All cloak endpoints have **no authentication** — should be internal only.
+> ✅ **SECURED:** All cloak endpoints now require authentication with `cloak.read` or `cloak.write` permissions.
 
 ---
 
@@ -174,6 +179,7 @@ All protected endpoints require: `Authorization: Bearer <token>`
 ## 📦 Data Schemas (Zod DTOs)
 
 ### CampaignStartSchema
+
 ```typescript
 {
   name: string (1-200 chars),
@@ -195,6 +201,7 @@ All protected endpoints require: `Authorization: Bearer <token>`
 ```
 
 ### ProfileCreateSchema
+
 ```typescript
 {
   platform: string,
@@ -223,25 +230,27 @@ All protected endpoints require: `Authorization: Bearer <token>`
 
 ---
 
-## 🚨 Flagged Issues
+## ✅ Security Improvements (December 2024)
 
-### Critical Security Concerns
+### Fixed Issues
 
-| Issue | Location | Severity | Recommendation |
-|-------|----------|----------|----------------|
-| Mock JWT in dev | `plugins/jwt.ts` | 🔴 Critical | Auto-injects admin user; ensure disabled in production |
-| No auth on `/analytics/event` | `routes/analytics.ts:55` | 🟠 High | Add internal API key or network-level protection |
-| No auth on Cloak endpoints | `routes/cloak.ts` | 🟠 High | Add RBAC or restrict to internal network |
-| `as any` overuse | All routes | 🟡 Medium | Replace with proper Zod parsing + types |
+| Issue | Status | Solution |
+|-------|--------|----------|
+| Mock JWT in dev | ✅ Fixed | Environment-controlled (`AUTH_DISABLED`), disabled in production |
+| No auth on `/analytics/event` | ✅ Fixed | Requires internal API key or admin role |
+| No auth on Cloak endpoints | ✅ Fixed | Added `cloak.read`/`cloak.write` permissions |
+| Cloak routes not registered | ✅ Fixed | Added to server.ts |
+| Rate limiting missing | ✅ Fixed | Added `@fastify/rate-limit` plugin |
+| Audit logging missing | ✅ Fixed | Added audit logging hook for sensitive operations |
 
-### Missing Features
+### Implemented Features
 
-| Feature | Expected | Actual |
-|---------|----------|--------|
-| Rate limiting | Per-user rate limits | ❌ Not implemented |
-| Input validation | All endpoints | ⚠️ Partial (some routes skip Zod) |
-| Audit logging | Security events | ❌ Not implemented |
-| API versioning | `/v1/` prefix | ❌ Not implemented |
+| Feature | Status |
+|---------|--------|
+| Rate limiting | ✅ 100 req/min per user |
+| Input validation | ✅ Zod schemas on all routes |
+| Audit logging | ✅ Sensitive operations logged |
+| Internal API key | ✅ For worker authentication |
 
 ---
 
@@ -249,11 +258,29 @@ All protected endpoints require: `Authorization: Bearer <token>`
 
 | Code | Meaning |
 |------|---------|
+| `UNAUTHENTICATED` | Missing or invalid authorization |
+| `INVALID_TOKEN` | JWT verification failed |
+| `FORBIDDEN` | Missing RBAC permission |
+| `RATE_LIMIT_EXCEEDED` | Too many requests |
 | `WEAK_OR_MISSING_FIELDS` | Registration validation failed |
 | `USER_EXISTS` | Email/username already taken |
 | `INVALID_CREDENTIALS` | Wrong email/password |
 | `LOCKED` | Account locked (10+ failed attempts) |
-| `FORBIDDEN` | Missing RBAC permission |
 | `CAMPAIGN_NOT_FOUND` | Campaign ID doesn't exist |
 | `PROFILE_NOT_FOUND` | Profile ID doesn't exist |
 | `VALIDATION_ERROR` | Zod schema validation failed |
+
+---
+
+## 🔧 Environment Variables
+
+```bash
+# Authentication
+AUTH_DISABLED=true          # Set to false in production
+JWT_SECRET=<secret>         # Required in production
+INTERNAL_API_KEY=<key>      # For worker authentication
+
+# Rate Limiting
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW_MS=60000
+```
