@@ -1,3 +1,27 @@
+/**
+ * ============================================================================
+ * ⚠️ OAUTH AUTHENTICATION SUSPENDED ⚠️
+ * ============================================================================
+ * 
+ * STATUS: TEMPORARILY DISABLED
+ * DATE: December 2024
+ * 
+ * OAuth login flow (Google, GitHub) has been suspended. The application
+ * currently operates WITHOUT authentication requirements.
+ * 
+ * All endpoints in this file (/oauth/*) are NON-FUNCTIONAL until auth is
+ * re-enabled.
+ * 
+ * TO RE-ENABLE:
+ * 1. Configure OAuth providers in config/oauth/providers.json
+ * 2. Set environment variables for client IDs and secrets
+ * 3. Update frontend to use OAuth flow
+ * 4. Remove this notice
+ * 
+ * See: frontend/dev-docs/api_reference.md for full documentation
+ * ============================================================================
+ */
+
 import { FastifyPluginAsync } from "fastify";
 import crypto from "crypto";
 import { readFileSync } from "fs";
@@ -29,7 +53,7 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
     try {
       const redis = await getRedis(process.env.REDIS_URL || "redis://localhost:6379");
       await setWithTTL(`oauth:state:${state}`, JSON.stringify({ verifier, provider, mode }), 10 * 60);
-    } catch {}
+    } catch { }
     reply.code(200).send({ provider, state, codeVerifier: verifier, authorizeUrl: url.toString() });
   });
   fastify.get("/:provider/callback", async (request: any, reply: any) => {
@@ -44,7 +68,7 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
           const parsed = JSON.parse(json);
           if (parsed?.verifier) codeVerifier = parsed.verifier;
         }
-      } catch {}
+      } catch { }
     }
     const cfg = JSON.parse(readFileSync("../../config/oauth/providers.json", "utf-8"))[provider];
     if (!cfg) { reply.code(404).send({ error: "UNKNOWN_PROVIDER" }); return; }
@@ -79,7 +103,7 @@ export const oauthRoutes: FastifyPluginAsync = async (fastify) => {
     if (!request.user && user?.id) {
       token = await signAccess(user.id, user.role || "viewer", crypto.randomBytes(16).toString("hex"));
     }
-    if (state) { try { await delKey(`oauth:state:${state}`); } catch {} }
+    if (state) { try { await delKey(`oauth:state:${state}`); } catch { } }
     reply.code(200).send(token ? { token, user } : { ok: true });
   });
 };

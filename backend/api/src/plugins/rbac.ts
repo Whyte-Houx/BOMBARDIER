@@ -1,3 +1,25 @@
+/**
+ * ============================================================================
+ * ⚠️ RBAC NOTE: AUTHENTICATION SUSPENDED ⚠️
+ * ============================================================================
+ * 
+ * STATUS: FUNCTIONAL BUT INEFFECTIVE
+ * DATE: December 2024
+ * 
+ * This RBAC plugin is fully functional, but because authentication is
+ * suspended (see plugins/jwt.ts), ALL requests receive a mock admin user.
+ * 
+ * This means:
+ * - All permission checks PASS (admin has "*" wildcard)
+ * - No real access control is enforced
+ * 
+ * When authentication is re-enabled, RBAC will work as designed with
+ * proper role-based access control.
+ * 
+ * See: config/rbac/permissions.json for role definitions
+ * ============================================================================
+ */
+
 import fp from "fastify-plugin";
 import { readFileSync } from "fs";
 const configPath = process.env.RBAC_CONFIG_PATH || "config/rbac/permissions.json";

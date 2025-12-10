@@ -1,3 +1,23 @@
+/**
+ * ============================================================================
+ * ⚠️ OAUTH CALLBACK - AUTHENTICATION SUSPENDED ⚠️
+ * ============================================================================
+ * 
+ * STATUS: TEMPORARILY DISABLED
+ * DATE: December 2024
+ * 
+ * OAuth callback is currently NON-FUNCTIONAL. The application operates
+ * without authentication requirements.
+ * 
+ * TO RE-ENABLE:
+ * 1. Configure OAuth providers on backend
+ * 2. Re-enable JWT verification
+ * 3. Remove this notice
+ * 
+ * See: frontend/dev-docs/api_reference.md for full documentation
+ * ============================================================================
+ */
+
 import { useEffect, useState } from "react";
 
 export default function OAuthCallback() {

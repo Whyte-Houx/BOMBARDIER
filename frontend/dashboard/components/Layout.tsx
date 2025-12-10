@@ -1,3 +1,20 @@
+/**
+ * ============================================================================
+ * ⚠️ AUTHENTICATION SUSPENDED ⚠️
+ * ============================================================================
+ * 
+ * STATUS: Auth guard BYPASSED - all users auto-authenticated as admin
+ * DATE: December 2024
+ * 
+ * The auth check has been disabled. Users have full access without login.
+ * 
+ * TO RE-ENABLE AUTHENTICATION:
+ * 1. Uncomment the login redirect logic in useEffect below
+ * 2. Remove the auto-authentication fallback
+ * 3. Remove this notice
+ * ============================================================================
+ */
+
 import { ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -22,11 +39,22 @@ export default function Layout({ children }: LayoutProps) {
             const token = window.localStorage.getItem('auth_token');
             const role = window.localStorage.getItem('auth_role');
 
-            if (!token && !isNoLayout) {
-                router.push('/login');
-            } else if (token) {
+            // ⚠️ AUTH SUSPENDED: Original redirect logic commented out
+            // if (!token && !isNoLayout) {
+            //     router.push('/login');
+            // } else if (token) {
+            //     setIsAuth(true);
+            //     setUserRole(role || 'viewer');
+            // }
+
+            // ⚠️ AUTH SUSPENDED: Auto-authenticate all users as admin
+            if (token) {
                 setIsAuth(true);
-                setUserRole(role || 'viewer');
+                setUserRole(role || 'admin');
+            } else {
+                // No token? Auto-authenticate anyway
+                setIsAuth(true);
+                setUserRole('admin');
             }
         }
     }, [router.pathname, isNoLayout]);
@@ -36,7 +64,9 @@ export default function Layout({ children }: LayoutProps) {
             window.localStorage.removeItem('auth_token');
             window.localStorage.removeItem('auth_role');
             window.localStorage.removeItem('auth_user_id');
-            router.push('/login');
+            // ⚠️ AUTH SUSPENDED: Stay on current page instead of redirecting
+            // router.push('/login');
+            router.push('/');
         }
     };
 
@@ -44,10 +74,10 @@ export default function Layout({ children }: LayoutProps) {
         return <>{children}</>;
     }
 
-    // Prevent flash of layout before auth check
-    if (!isAuth) {
-        return null;
-    }
+    // ⚠️ AUTH SUSPENDED: Removed auth check that returned null
+    // if (!isAuth) {
+    //     return null;
+    // }
 
     const navItems = [
         { name: 'Campaigns', path: '/campaigns', icon: '🚀' },

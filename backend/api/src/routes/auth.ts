@@ -1,3 +1,27 @@
+/**
+ * ============================================================================
+ * ⚠️ AUTHENTICATION SUSPENDED ⚠️
+ * ============================================================================
+ * 
+ * STATUS: TEMPORARILY DISABLED
+ * DATE: December 2024
+ * 
+ * The login and registration flow has been suspended. The application
+ * currently operates WITHOUT authentication requirements.
+ * 
+ * All endpoints in this file (/auth/*) are NON-FUNCTIONAL until auth is
+ * re-enabled. The JWT plugin injects a mock admin user for all requests.
+ * 
+ * TO RE-ENABLE AUTHENTICATION:
+ * 1. Update `plugins/jwt.ts` to implement real JWT verification
+ * 2. Remove mock user injection
+ * 3. Update frontend to require login
+ * 4. Remove this notice
+ * 
+ * See: frontend/dev-docs/api_reference.md for full documentation
+ * ============================================================================
+ */
+
 import { FastifyPluginAsync } from "fastify";
 import crypto from "crypto";
 import argon2 from "argon2";

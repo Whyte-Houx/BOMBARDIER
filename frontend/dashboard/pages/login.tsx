@@ -1,3 +1,27 @@
+/**
+ * ============================================================================
+ * ⚠️ LOGIN PAGE - AUTHENTICATION SUSPENDED ⚠️
+ * ============================================================================
+ * 
+ * STATUS: TEMPORARILY DISABLED
+ * DATE: December 2024
+ * 
+ * This login page is currently NON-FUNCTIONAL. The application operates
+ * without authentication requirements.
+ * 
+ * The backend JWT plugin injects a mock admin user for all requests,
+ * so users have full access without logging in.
+ * 
+ * TO RE-ENABLE LOGIN:
+ * 1. Update backend plugins/jwt.ts to implement real JWT verification
+ * 2. Add auth guards to protected routes
+ * 3. Redirect unauthenticated users here
+ * 4. Remove this notice
+ * 
+ * See: frontend/dev-docs/api_reference.md for full documentation
+ * ============================================================================
+ */
+
 import { useState } from "react";
 import styles from "../styles/login.module.css";
 
@@ -37,7 +61,7 @@ export default function Login() {
       if (!res.ok) throw new Error(`${res.status}`);
       const data = await res.json();
       if (data?.state) {
-        try { window.localStorage.setItem(`oauth:provider:${data.state}`, provider); } catch {}
+        try { window.localStorage.setItem(`oauth:provider:${data.state}`, provider); } catch { }
       }
       window.location.href = data.authorizeUrl;
     } catch (e: any) {
