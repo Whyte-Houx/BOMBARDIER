@@ -1,7 +1,7 @@
 # Bombardier Backend API Reference
 
 > **Base URL:** `http://localhost:4050`  
-> **Total Endpoints:** 57  
+> **Total Endpoints:** 59  
 > **Authentication:** JWT Bearer Token or Internal API Key  
 > **Last Updated:** December 10, 2024
 
@@ -173,21 +173,21 @@ Set via `INTERNAL_API_KEY` environment variable.
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET | `/health/` | ❌ | Basic health check → `{ status, timestamp, service, version }` |
-| GET | `/health/detailed` | ❌ | Detailed health with MongoDB & Redis status |
+| GET | `/health/live` | ❌ | Liveness probe → `{ alive: true }` |
+| GET | `/health/ready` | ❌ | Readiness probe → `{ ready: true/false }` |
+| GET | `/health/detailed` | ✅ | Detailed health with MongoDB & Redis status (requires `system.read`) |
 | GET | `/metrics/` | ✅ | Prometheus-format metrics |
 
-**Health Endpoints (Public):**
+**Public Health Endpoints (for infrastructure):**
 
-- `/health/` - For load balancers and Kubernetes probes
-- `/health/detailed` - Returns dependency connectivity and latency
+- `/health/` - Basic status for uptime monitors
+- `/health/live` - Kubernetes liveness probe
+- `/health/ready` - Kubernetes readiness probe (checks MongoDB & Redis)
 
-**Metrics Authentication Options:**
+**Protected Endpoints:**
 
-- `Authorization: Bearer <jwt>` with `system.read` permission
-- `X-Prometheus-Token: <token>` for Prometheus scraping
-- `X-Api-Key: <key>` for internal monitoring services
-
-> ✅ **SECURED:** `/metrics` now requires authentication to protect internal system data.
+- `/health/detailed` - Requires `system.read` permission (exposes internal infrastructure details)
+- `/metrics/` - Requires `system.read`, `X-Prometheus-Token`, or `X-Api-Key`
 
 ---
 
@@ -254,11 +254,12 @@ Set via `INTERNAL_API_KEY` environment variable.
 | Mock JWT in dev | ✅ Fixed | Environment-controlled (`AUTH_DISABLED`), disabled in production |
 | No auth on `/analytics/event` | ✅ Fixed | Requires internal API key or admin role |
 | No auth on `/metrics` | ✅ Fixed | Requires `system.read`, Prometheus token, or API key |
+| No auth on `/health/detailed` | ✅ Fixed | Requires `system.read` permission |
 | No auth on Cloak endpoints | ✅ Fixed | Added `cloak.read`/`cloak.write` permissions |
 | Cloak routes not registered | ✅ Fixed | Added to server.ts |
 | Rate limiting missing | ✅ Fixed | Added `@fastify/rate-limit` plugin |
 | Audit logging missing | ✅ Fixed | Added audit logging hook for sensitive operations |
-| Basic health check only | ✅ Fixed | Added `/health/detailed` with dependency checks |
+| Missing K8s probes | ✅ Fixed | Added `/health/live` and `/health/ready` endpoints |
 
 ### Implemented Features
 
