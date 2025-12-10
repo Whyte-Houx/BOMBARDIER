@@ -1,0 +1,111 @@
+name: CI/CD Pipeline
+
+on:
+    push:
+        branches: ["main"]
+    pull_request:
+        branches: ["main"]
+
+jobs:
+    test:
+        name: Run Tests
+        runs-on: ubuntu-latest
+
+        services:
+            mongodb:
+                image: mongo:7
+                ports:
+                    - 27017:27017
+            redis:
+                image: redis:7
+                ports:
+                    - 6379:6379
+
+        strategy:
+            matrix:
+                node-version: [18.x, 20.x]
+
+        steps:
+            - uses: actions/checkout@v3
+
+            - name: Use Node.js ${{ matrix.node-version }}
+              uses: actions/setup-node@v3
+              with:
+                  node-version: ${{ matrix.node-version }}
+                  cache: "npm"
+                  cache-dependency-path: "**/package-lock.json"
+
+            - name: Install Dependencies
+              run: npm ci
+
+            - name: Run Linting
+              run: npm run lint --if-present
+
+            - name: Run Unit Tests
+              run: npm test
+              env:
+                  MONGO_URL: mongodb://localhost:27017/test
+                  REDIS_URL: redis://localhost:6379
+
+    build-and-push:
+        name: Build & Push Docker Images
+        needs: test
+        runs-on: ubuntu-latest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+        steps:
+            - uses: actions/checkout@v3
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v2
+
+            - name: Login to Docker Hub
+              uses: docker/login-action@v2
+              with:
+                  username: ${{ secrets.DOCKERHUB_USERNAME }}
+                  password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+            - name: Build and Push API
+              uses: docker/build-push-action@v4
+              with:
+                  context: ./backend/api
+                  push: true
+                  tags: bombardier/api:latest
+
+            - name: Build and Push Workers
+              uses: docker/build-push-action@v4
+              with:
+                  context: ./backend/workers
+                  push: true
+                  tags: bombardier/workers:latest
+
+            - name: Build and Push Dashboard
+              uses: docker/build-push-action@v4
+              with:
+                  context: ./frontend/dashboard
+                  push: true
+                  tags: bombardier/dashboard:latest
+
+    deploy:
+        name: Deploy to Kubernetes
+        needs: build-and-push
+        runs-on: ubuntu-latest
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+        steps:
+            - uses: actions/checkout@v3
+
+            - name: Set up kubectl
+              uses: azure/setup-kubectl@v3
+
+            - name: Deploy to Cluster
+              env:
+                  KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+              run: |
+                  mkdir -p ~/.kube
+                  echo "$KUBE_CONFIG" > ~/.kube/config
+                  chmod 600 ~/.kube/config
+                  kubectl apply -f ops/k8s/deployment.yaml
+                  kubectl -n bombardier rollout restart deployment/api
+                  kubectl -n bombardier rollout restart deployment/workers
+                  kubectl -n bombardier rollout restart deployment/dashboard
