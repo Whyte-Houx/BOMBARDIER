@@ -85,6 +85,7 @@ export default function Layout({ children }: LayoutProps) {
         { name: 'Analytics', path: '/analytics', icon: '📊' },
         { name: 'Cloak System', path: '/cloak', icon: '🎭' },
         { name: 'System Status', path: '/status', icon: '📡' },
+        { name: 'Settings', path: '/settings', icon: '⚙️' },
     ];
 
     return (

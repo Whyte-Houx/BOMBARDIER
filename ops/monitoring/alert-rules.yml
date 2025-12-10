@@ -1,0 +1,184 @@
+# Prometheus Alert Rules for Bombardier
+# Critical alerts for production monitoring
+
+groups:
+  - name: bombardier-api
+    rules:
+      - alert: APIHighErrorRate
+        expr: sum(rate(http_requests_total{service="api",status=~"5.."}[5m])) / sum(rate(http_requests_total{service="api"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High API error rate detected"
+          description: "API error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+
+      - alert: APIHighLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{service="api"}[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency detected"
+          description: "API p95 latency is {{ $value }}s (threshold: 2s)"
+
+      - alert: APIDown
+        expr: up{job="api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API service is down"
+          description: "API service has been down for more than 1 minute"
+
+  - name: bombardier-workers
+    rules:
+      - alert: WorkerDown
+        expr: up{job=~".*-worker"} == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Worker {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been down for more than 2 minutes"
+
+      - alert: QueueBacklog
+        expr: bombardier_queue_length > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Queue {{ $labels.queue }} has high backlog"
+          description: "Queue has {{ $value }} pending items (threshold: 1000)"
+
+      - alert: QueueCriticalBacklog
+        expr: bombardier_queue_length > 5000
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical queue backlog on {{ $labels.queue }}"
+          description: "Queue has {{ $value }} pending items - processing may be stuck"
+
+      - alert: WorkerJobFailures
+        expr: sum(rate(bombardier_worker_job_failures_total[15m])) by (worker) > 0.1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High job failure rate in {{ $labels.worker }}"
+          description: "{{ $labels.worker }} is failing {{ $value }} jobs/second"
+
+  - name: bombardier-cloak
+    rules:
+      - alert: HighDetectionRate
+        expr: sum(rate(bombardier_detection_events_total[1h])) / sum(rate(bombardier_browser_sessions_total[1h])) > 0.1
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High bot detection rate"
+          description: "Detection rate is {{ $value | humanizePercentage }} - review cloak settings"
+
+      - alert: ProxyPoolLow
+        expr: bombardier_proxy_pool_size < 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Proxy pool running low"
+          description: "Only {{ $value }} proxies available in pool"
+
+      - alert: ProxyPoolCritical
+        expr: bombardier_proxy_pool_size < 3
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Proxy pool critically low"
+          description: "Only {{ $value }} proxies available - acquisition may fail"
+
+      - alert: HighCaptchaRate
+        expr: sum(rate(bombardier_captcha_challenges_total[1h])) > 10
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CAPTCHA challenge rate"
+          description: "Receiving {{ $value }} CAPTCHAs per hour - possible detection issues"
+
+  - name: bombardier-infrastructure
+    rules:
+      - alert: MongoDBDown
+        expr: up{job="mongodb"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "MongoDB is down"
+          description: "MongoDB database is unavailable"
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis cache is unavailable - queues will fail"
+
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes{namespace="bombardier"} / container_spec_memory_limit_bytes{namespace="bombardier"} > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage in {{ $labels.pod }}"
+          description: "{{ $labels.pod }} memory usage is {{ $value | humanizePercentage }}"
+
+      - alert: HighCPUUsage
+        expr: sum(rate(container_cpu_usage_seconds_total{namespace="bombardier"}[5m])) by (pod) / sum(container_spec_cpu_quota{namespace="bombardier"}/container_spec_cpu_period{namespace="bombardier"}) by (pod) > 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage in {{ $labels.pod }}"
+          description: "{{ $labels.pod }} CPU usage is {{ $value | humanizePercentage }}"
+
+      - alert: PodRestartLoop
+        expr: increase(kube_pod_container_status_restarts_total{namespace="bombardier"}[1h]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod {{ $labels.pod }} is restart looping"
+          description: "{{ $labels.pod }} has restarted {{ $value }} times in the last hour"
+
+  - name: bombardier-business
+    rules:
+      - alert: LowProfileAcquisitionRate
+        expr: sum(rate(bombardier_profiles_acquired_total[1h])) < 10
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low profile acquisition rate"
+          description: "Only {{ $value }} profiles acquired per hour - check campaigns"
+
+      - alert: LowResponseRate
+        expr: sum(rate(bombardier_responses_received_total[24h])) / sum(rate(bombardier_messages_sent_total[24h])) < 0.05
+        for: 24h
+        labels:
+          severity: info
+        annotations:
+          summary: "Low message response rate"
+          description: "Response rate is {{ $value | humanizePercentage }} - review message templates"
+
+      - alert: NoActiveCampaigns
+        expr: sum(bombardier_campaigns_active) == 0
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "No active campaigns"
+          description: "No campaigns are currently running"

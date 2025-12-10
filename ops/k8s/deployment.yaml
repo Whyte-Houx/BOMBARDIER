@@ -1,0 +1,609 @@
+# Bombardier Kubernetes Deployment
+# Production-ready K8s manifests
+
+---
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bombardier
+  labels:
+    app: bombardier
+    environment: production
+
+---
+# ConfigMap for shared configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bombardier-config
+  namespace: bombardier
+data:
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  API_PORT: "4050"
+  ML_SERVICE_PORT: "5000"
+  BROWSER_SERVICE_PORT: "5100"
+  WORKERS_ENABLED: "true"
+  USE_BROWSER_SERVICE: "true"
+
+---
+# Secret for sensitive data (base64 encoded in production)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bombardier-secrets
+  namespace: bombardier
+type: Opaque
+stringData:
+  MONGO_URL: "mongodb://mongodb:27017/bombardier"
+  REDIS_URL: "redis://redis:6379"
+  JWT_SECRET: "your-super-secret-jwt-key-change-in-production"
+  ENCRYPTION_KEY: "your-32-byte-encryption-key-here"
+
+---
+# MongoDB StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: bombardier
+spec:
+  serviceName: mongodb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo:7
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: mongodb-data
+              mountPath: /data/db
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          livenessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - mongosh
+                - --eval
+                - "db.adminCommand('ping')"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: mongodb-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+
+---
+# MongoDB Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: bombardier
+spec:
+  ports:
+    - port: 27017
+      targetPort: 27017
+  selector:
+    app: mongodb
+  clusterIP: None
+
+---
+# Redis StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: bombardier
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+          command:
+            - redis-server
+            - --appendonly
+            - "yes"
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: bombardier
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    app: redis
+  clusterIP: None
+
+---
+# API Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: bombardier
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "4050"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: api
+          image: bombardier/api:latest
+          ports:
+            - containerPort: 4050
+          envFrom:
+            - configMapRef:
+                name: bombardier-config
+            - secretRef:
+                name: bombardier-secrets
+          env:
+            - name: PORT
+              value: "4050"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4050
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 4050
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+---
+# API Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: bombardier
+spec:
+  ports:
+    - port: 4050
+      targetPort: 4050
+  selector:
+    app: api
+  type: ClusterIP
+
+---
+# API Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-hpa
+  namespace: bombardier
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# ML Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-service
+  namespace: bombardier
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ml-service
+  template:
+    metadata:
+      labels:
+        app: ml-service
+    spec:
+      containers:
+        - name: ml-service
+          image: bombardier/ml-service:latest
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: bombardier-config
+            - secretRef:
+                name: bombardier-secrets
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+---
+# ML Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-service
+  namespace: bombardier
+spec:
+  ports:
+    - port: 5000
+      targetPort: 5000
+  selector:
+    app: ml-service
+
+---
+# Browser Service Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: browser-service
+  namespace: bombardier
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: browser-service
+  template:
+    metadata:
+      labels:
+        app: browser-service
+    spec:
+      containers:
+        - name: browser-service
+          image: bombardier/browser-service:latest
+          ports:
+            - containerPort: 5100
+          envFrom:
+            - configMapRef:
+                name: bombardier-config
+            - secretRef:
+                name: bombardier-secrets
+          env:
+            - name: HEADLESS
+              value: "true"
+            - name: MAX_BROWSERS
+              value: "5"
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+          securityContext:
+            capabilities:
+              add:
+                - SYS_ADMIN
+
+---
+# Browser Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: browser-service
+  namespace: bombardier
+spec:
+  ports:
+    - port: 5100
+      targetPort: 5100
+  selector:
+    app: browser-service
+
+---
+# Workers Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workers
+  namespace: bombardier
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: workers
+  template:
+    metadata:
+      labels:
+        app: workers
+    spec:
+      containers:
+        - name: acquisition-worker
+          image: bombardier/workers:latest
+          command: ["node", "dist/acquisition-worker.js"]
+          envFrom:
+            - configMapRef:
+                name: bombardier-config
+            - secretRef:
+                name: bombardier-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+        - name: filtering-worker
+          image: bombardier/workers:latest
+          command: ["node", "dist/filtering-worker.js"]
+          envFrom:
+            - configMapRef:
+                name: bombardier-config
+            - secretRef:
+                name: bombardier-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+        - name: engagement-worker
+          image: bombardier/workers:latest
+          command: ["node", "dist/engagement-worker.js"]
+          envFrom:
+            - configMapRef:
+                name: bombardier-config
+            - secretRef:
+                name: bombardier-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+        - name: tracking-worker
+          image: bombardier/workers:latest
+          command: ["node", "dist/tracking-worker.js"]
+          envFrom:
+            - configMapRef:
+                name: bombardier-config
+            - secretRef:
+                name: bombardier-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+---
+# Dashboard Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: bombardier
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: dashboard
+  template:
+    metadata:
+      labels:
+        app: dashboard
+    spec:
+      containers:
+        - name: dashboard
+          image: bombardier/dashboard:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "http://api:4050"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+---
+# Dashboard Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: bombardier
+spec:
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app: dashboard
+
+---
+# Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bombardier-ingress
+  namespace: bombardier
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+    - hosts:
+        - app.bombardier.io
+        - api.bombardier.io
+      secretName: bombardier-tls
+  rules:
+    - host: app.bombardier.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard
+                port:
+                  number: 3000
+    - host: api.bombardier.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  number: 4050
+
+---
+# Network Policy - Restrict inter-pod communication
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bombardier-network-policy
+  namespace: bombardier
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: bombardier
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: bombardier
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53

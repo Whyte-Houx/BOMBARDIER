@@ -1,7 +1,151 @@
+# Prometheus Configuration for Bombardier
+# Scrape configurations for all services
+
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: "bombardier-production"
+    env: "production"
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Rule files
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+# Scrape configurations
 scrape_configs:
-  - job_name: api
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # API Service
+  - job_name: "api"
+    metrics_path: "/metrics"
     static_configs:
       - targets: ["api:4050"]
-    metrics_path: /metrics
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: "api"
+
+  # ML Service
+  - job_name: "ml-service"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["ml-service:5000"]
+
+  # Browser Service
+  - job_name: "browser-service"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["browser-service:5100"]
+
+  # Workers (via push gateway or direct if exposed)
+  - job_name: "acquisition-worker"
+    static_configs:
+      - targets: ["workers:9100"]
+    metrics_path: "/metrics"
+
+  - job_name: "filtering-worker"
+    static_configs:
+      - targets: ["workers:9101"]
+    metrics_path: "/metrics"
+
+  - job_name: "engagement-worker"
+    static_configs:
+      - targets: ["workers:9102"]
+    metrics_path: "/metrics"
+
+  - job_name: "tracking-worker"
+    static_configs:
+      - targets: ["workers:9103"]
+    metrics_path: "/metrics"
+
+  # MongoDB Exporter
+  - job_name: "mongodb"
+    static_configs:
+      - targets: ["mongodb-exporter:9216"]
+
+  # Redis Exporter
+  - job_name: "redis"
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+
+  # Node Exporters (if running on VMs/bare metal)
+  - job_name: "node"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # Kubernetes Service Discovery (for K8s deployments)
+  - job_name: "kubernetes-pods"
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - bombardier
+    relabel_configs:
+      # Only scrape pods with prometheus.io/scrape annotation
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      # Use custom port if specified
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        target_label: __address__
+        regex: (.+)
+        replacement: ${1}
+      # Use custom path if specified
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      # Add pod labels
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      # Add namespace label
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      # Add pod name label
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: kubernetes_pod_name
+
+  # Kubernetes Service Discovery for services
+  - job_name: "kubernetes-services"
+    kubernetes_sd_configs:
+      - role: service
+        namespaces:
+          names:
+            - bombardier
+    relabel_configs:
+      - source_labels:
+          [__meta_kubernetes_service_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_service_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels:
+          [__address__, __meta_kubernetes_service_annotation_prometheus_io_port]
+        action: replace
+        target_label: __address__
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+      - action: labelmap
+        regex: __meta_kubernetes_service_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_service_name]
+        action: replace
+        target_label: kubernetes_name
