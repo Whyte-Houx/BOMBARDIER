@@ -171,8 +171,15 @@ Set via `INTERNAL_API_KEY` environment variable.
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | `/health/` | ❌ | Basic health check → `{ status: "ok" }` |
-| GET | `/metrics/` | ❌ | Prometheus-format metrics |
+| GET | `/health/` | ❌ | Basic health check → `{ status, timestamp, service, version }` |
+| GET | `/health/detailed` | ❌ | Detailed health with dependency status (MongoDB, Redis) |
+| GET | `/metrics/` | ✅ | Prometheus-format metrics (requires `system.read` or token) |
+
+**Metrics Authentication Options:**
+
+- `Authorization: Bearer <jwt>` with `system.read` permission
+- `X-Prometheus-Token: <token>` for Prometheus scraping
+- `X-Api-Key: <key>` for internal monitoring services
 
 ---
 
