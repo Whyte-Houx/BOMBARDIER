@@ -1,8 +1,9 @@
 # Bombardier Backend API Reference
 
 > **Base URL:** `http://localhost:4050`  
-> **Total Endpoints:** 55  
+> **Total Endpoints:** 57  
 > **Authentication:** JWT Bearer Token or Internal API Key  
+> **Last Updated:** December 10, 2024
 
 ---
 
@@ -126,7 +127,7 @@ Set via `INTERNAL_API_KEY` environment variable.
 | GET | `/realtime` | ✅ | `analytics.read` | Last hour stats |
 | GET | `/health` | ✅ | `analytics.read` | Pipeline health status |
 
-> ✅ **SECURED:** `/event` and `/metric` now require internal API key (`X-Api-Key` header) or admin role.
+> ✅ **SECURED:** `/event` and `/metric` require internal API key (`X-Api-Key` header) or admin role.
 
 ---
 
@@ -163,7 +164,7 @@ Set via `INTERNAL_API_KEY` environment variable.
 | POST | `/leak-test` | ✅ | `cloak.write` | Run IP/DNS/WebRTC leak tests |
 | POST | `/account/register` | ✅ | `cloak.write` | Register account for warming |
 
-> ✅ **SECURED:** All cloak endpoints now require authentication with `cloak.read` or `cloak.write` permissions.
+> ✅ **SECURED:** All cloak endpoints require `cloak.read` or `cloak.write` permissions.
 
 ---
 
@@ -172,14 +173,21 @@ Set via `INTERNAL_API_KEY` environment variable.
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
 | GET | `/health/` | ❌ | Basic health check → `{ status, timestamp, service, version }` |
-| GET | `/health/detailed` | ❌ | Detailed health with dependency status (MongoDB, Redis) |
-| GET | `/metrics/` | ✅ | Prometheus-format metrics (requires `system.read` or token) |
+| GET | `/health/detailed` | ❌ | Detailed health with MongoDB & Redis status |
+| GET | `/metrics/` | ✅ | Prometheus-format metrics |
+
+**Health Endpoints (Public):**
+
+- `/health/` - For load balancers and Kubernetes probes
+- `/health/detailed` - Returns dependency connectivity and latency
 
 **Metrics Authentication Options:**
 
 - `Authorization: Bearer <jwt>` with `system.read` permission
 - `X-Prometheus-Token: <token>` for Prometheus scraping
 - `X-Api-Key: <key>` for internal monitoring services
+
+> ✅ **SECURED:** `/metrics` now requires authentication to protect internal system data.
 
 ---
 
@@ -245,49 +253,102 @@ Set via `INTERNAL_API_KEY` environment variable.
 |-------|--------|----------|
 | Mock JWT in dev | ✅ Fixed | Environment-controlled (`AUTH_DISABLED`), disabled in production |
 | No auth on `/analytics/event` | ✅ Fixed | Requires internal API key or admin role |
+| No auth on `/metrics` | ✅ Fixed | Requires `system.read`, Prometheus token, or API key |
 | No auth on Cloak endpoints | ✅ Fixed | Added `cloak.read`/`cloak.write` permissions |
 | Cloak routes not registered | ✅ Fixed | Added to server.ts |
 | Rate limiting missing | ✅ Fixed | Added `@fastify/rate-limit` plugin |
 | Audit logging missing | ✅ Fixed | Added audit logging hook for sensitive operations |
+| Basic health check only | ✅ Fixed | Added `/health/detailed` with dependency checks |
 
 ### Implemented Features
 
-| Feature | Status |
-|---------|--------|
-| Rate limiting | ✅ 100 req/min per user |
-| Input validation | ✅ Zod schemas on all routes |
-| Audit logging | ✅ Sensitive operations logged |
-| Internal API key | ✅ For worker authentication |
+| Feature | Status | Details |
+|---------|--------|---------|
+| Rate limiting | ✅ | 100 req/min per user/IP |
+| Input validation | ✅ | Zod schemas on all routes |
+| Audit logging | ✅ | Sensitive operations logged |
+| Internal API key | ✅ | For worker authentication |
+| Prometheus auth | ✅ | Token-based metrics access |
+| Health checks | ✅ | Basic + detailed with dependencies |
 
 ---
 
 ## 📊 Error Codes
 
-| Code | Meaning |
-|------|---------|
-| `UNAUTHENTICATED` | Missing or invalid authorization |
-| `INVALID_TOKEN` | JWT verification failed |
-| `FORBIDDEN` | Missing RBAC permission |
-| `RATE_LIMIT_EXCEEDED` | Too many requests |
-| `WEAK_OR_MISSING_FIELDS` | Registration validation failed |
-| `USER_EXISTS` | Email/username already taken |
-| `INVALID_CREDENTIALS` | Wrong email/password |
-| `LOCKED` | Account locked (10+ failed attempts) |
-| `CAMPAIGN_NOT_FOUND` | Campaign ID doesn't exist |
-| `PROFILE_NOT_FOUND` | Profile ID doesn't exist |
-| `VALIDATION_ERROR` | Zod schema validation failed |
+| Code | HTTP | Meaning |
+|------|------|---------|
+| `UNAUTHENTICATED` | 401 | Missing or invalid authorization |
+| `INVALID_TOKEN` | 401 | JWT verification failed |
+| `FORBIDDEN` | 403 | Missing RBAC permission |
+| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
+| `WEAK_OR_MISSING_FIELDS` | 400 | Registration validation failed |
+| `USER_EXISTS` | 409 | Email/username already taken |
+| `INVALID_CREDENTIALS` | 401 | Wrong email/password |
+| `LOCKED` | 429 | Account locked (10+ failed attempts) |
+| `CAMPAIGN_NOT_FOUND` | 404 | Campaign ID doesn't exist |
+| `PROFILE_NOT_FOUND` | 404 | Profile ID doesn't exist |
+| `VALIDATION_ERROR` | 400 | Zod schema validation failed |
+| `MISSING_TYPE` | 400 | Analytics event type required |
+| `INVALID_METRICS` | 400 | Metrics object malformed |
 
 ---
 
 ## 🔧 Environment Variables
 
 ```bash
+# ============================================
 # Authentication
-AUTH_DISABLED=true          # Set to false in production
-JWT_SECRET=<secret>         # Required in production
-INTERNAL_API_KEY=<key>      # For worker authentication
+# ============================================
+AUTH_DISABLED=true              # Set to false in production!
+JWT_SECRET=<secret>             # Required in production (openssl rand -base64 32)
+INTERNAL_API_KEY=<key>          # For worker authentication (openssl rand -hex 32)
 
+# ============================================
 # Rate Limiting
-RATE_LIMIT_MAX=100
-RATE_LIMIT_WINDOW_MS=60000
+# ============================================
+RATE_LIMIT_MAX=100              # Requests per window
+RATE_LIMIT_WINDOW_MS=60000      # Window duration (1 minute)
+
+# ============================================
+# Monitoring
+# ============================================
+PROMETHEUS_TOKEN=<token>        # For /metrics endpoint access (openssl rand -hex 32)
+```
+
+---
+
+## 🚀 Quick Reference
+
+### Common Headers
+
+```http
+# JWT Authentication
+Authorization: Bearer <token>
+
+# Internal API Key (workers)
+X-Api-Key: <internal_key>
+
+# Prometheus Metrics
+X-Prometheus-Token: <token>
+```
+
+### Response Format
+
+All endpoints return consistent JSON:
+
+```json
+{
+  "success": true,
+  "data": { ... }
+}
+```
+
+Or on error:
+
+```json
+{
+  "success": false,
+  "error": "ERROR_CODE",
+  "message": "Human-readable description"
+}
 ```
