@@ -9,6 +9,13 @@
 
 ```
 frontend/
+├── public/
+│   └── assets/                # Core brand and UI assets
+│       ├── logo.svg
+│       ├── app-home.svg
+│       ├── mockup.svg
+│       ├── banner.svg
+│       └── ...
 ├── src/
 │   ├── components/
 │   │   ├── chat/
@@ -85,6 +92,12 @@ frontend/
     1. **System:** CPU/RAM, API Latency (ms).
     2. **Workers:** Active threads count, Queue depth.
     3. **Cloak:** Current IP, Proxy Success Rate (%).
+
+### E. Global Asset Integration
+
+* **Header/Overlay:** Use `logo.svg` for main branding (top-left or centered on load).
+* **Background Reference:** Developers should overlay `app-home.svg` during build to ensure 1:1 pixel perfection with the "Neon Command" reference design.
+* **Icons:** Use `cl-market.svg` for the "Acquisition" or "New Campaign" trigger button in the HUD.
 
 ---
 

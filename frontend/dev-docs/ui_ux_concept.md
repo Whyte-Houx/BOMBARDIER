@@ -23,7 +23,8 @@ This unifies **Input** (Commands) and **Output** (Data/Visuals) into one chronol
 
 ### Color Palette: "Deep Space & Laser Fire"
 
-* **Background:** `#050505` (Void Black) - Not grey, *black*.
+- **Background:** `#050505` (Void Black) - Not grey, *black*.
+
 - **Surface:** `#0A0A0A` with subtle noise texture.
 - **Primary Accent:** `#00FF94` (Cyber Green) - Success, Active, Growth.
 - **Secondary Accent:** `#FF0055` (Crimson Neon) - Alerts, Stops, Errors.
@@ -32,9 +33,26 @@ This unifies **Input** (Commands) and **Output** (Data/Visuals) into one chronol
 
 ### Aesthetic Qualities
 
-* **Glassmorphism 2.0:** Ultra-thin 1px borders with 5% opacity fills. Heavy backdrop blur (20px).
+- **Glassmorphism 2.0:** Ultra-thin 1px borders with 5% opacity fills. Heavy backdrop blur (20px).
+
 - **Micro-Interactions:** Buttons don't just click; they *pulse* on hover. Charts *draw* themselves.
 - **Typography:** Uppercase, tracked-out headers for a "Military/Technical" feel.
+
+### Brand & Reference Assets
+
+The following high-fidelity assets (located in `frontend/dev-docs/image-files/`) define the implementation standards:
+
+- **Branding:**
+  - `logo.svg` / `dev-logo.svg`: Main application logos for header and loading screens.
+  - `banner.svg` / `banner.png`: Promotional hero graphics for landing or README.
+
+- **Reference Designs:**
+  - `app-home.svg`: **Primary reference** for the "Command Stream" layout structure.
+  - `mockup.svg` / `mockup.png`: Detailed high-fidelity mockup of the active interface state.
+
+- **UI Elements:**
+  - `cl-market.svg`: Iconography for the Campaign/Marketplace acquisition module.
+  - `more-info.svg`: Standard "Details" or "Help" icon.
 
 ---
 
@@ -43,12 +61,14 @@ This unifies **Input** (Commands) and **Output** (Data/Visuals) into one chronol
 ### A. The "Command Input" (Bottom Center)
 
 A floating, omni-powerful input bar.
+
 - **Features:** Slash commands (`/start`, `/status`), Natural Language Processing input.
 - **Visual:** Glowing border, floating above the content.
 
 ### B. The "Stream" (Main View)
 
 Where the conversation happens.
+
 - **Message Types:**
   - *Text:* "Campaign 'Alpha' has processed 500 profiles."
   - *Widgets:* Mini-charts embedded in chat bubbles.
@@ -57,6 +77,7 @@ Where the conversation happens.
 ### C. The "HUD" (Heads-Up Display - Sidebar)
 
 Persistent real-time stats.
+
 - **Location:** Collapsible right panel.
 - **Content:** Active Worker Threads, Global Error Rate, Total Spend, Proxy Health (Cloak Status).
 - **Visual:** Ticks and sparklines updating every second via WebSocket.
@@ -91,6 +112,7 @@ A subtle, interactive WebGL background visualization that represents the "networ
 
 ## 5. Why This Wins
 
-* **Focus:** Keeps user attention on *action*, not navigation.
+- **Focus:** Keeps user attention on *action*, not navigation.
+
 - **Speed:** No page loads. Everything is instant.
 - **Cool Factor:** Feels like using a tool from the future, boosting user confidence and perceived value.
