@@ -462,8 +462,12 @@ Backend                   WebSocket                  Frontend
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4050',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4050/v1',
   timeout: 10000,
+  headers: {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+  },
 });
 
 api.interceptors.request.use((config) => {

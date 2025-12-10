@@ -21,6 +21,8 @@
 - 🎭 **Cloak Anti-Detection** - 10-module stealth infrastructure
 - 📊 **Real-Time Analytics** - Campaign performance tracking
 - 🎮 **Mission Control** - Flexible campaign orchestration (DR/IVM methods)
+- 🔔 **Webhook Notifications** - HMAC-signed external event delivery
+- 🔍 **Advanced Profile Filtering** - Boolean query language for complex searches
 - ✅ **100% Test Coverage** - Comprehensive testing suite
 
 ---
@@ -212,19 +214,24 @@ Acquisition → Research → Filtering
 
 ## 🌐 API Endpoints
 
+> **API Version:** v1 | **Base URL:** `http://localhost:4050/v1`
+
 | Endpoint | Description |
 |----------|-------------|
-| `POST /auth/login` | User authentication |
-| `POST /auth/register` | User registration |
-| `GET /campaigns` | List campaigns |
-| `POST /campaigns` | Create campaign |
-| `POST /campaigns/:id/start` | Start campaign |
-| `GET /profiles` | List profiles |
-| `GET /analytics/metrics` | Campaign analytics |
-| `GET /analytics/realtime` | Real-time stats |
+| `POST /v1/auth/login` | User authentication |
+| `POST /v1/auth/register` | User registration |
+| `GET /v1/campaigns` | List campaigns |
+| `POST /v1/campaigns` | Create campaign |
+| `POST /v1/campaigns/:id/start` | Start campaign |
+| `GET /v1/profiles` | List profiles |
+| `POST /v1/profiles/advanced-search` | **NEW:** Boolean query filtering |
+| `GET /v1/webhooks` | **NEW:** List webhooks |
+| `POST /v1/webhooks` | **NEW:** Create webhook |
+| `GET /v1/analytics/metrics` | Campaign analytics |
+| `GET /v1/analytics/realtime` | Real-time stats |
 | `GET /health` | System health check |
 
-**See**: [API Documentation](./docs/api/README.md)
+**See**: [API Documentation](./frontend/dev-docs/api_reference.md)
 
 ---
 
@@ -282,6 +289,8 @@ Access the dashboard at `http://localhost:3000`:
 - Encrypted credential storage
 - Secure cookie handling
 - Anti-detection measures
+- **API Versioning** - `/v1` prefix with deprecation headers
+- **Webhook Signing** - HMAC-SHA256 payload verification
 
 ---
 
@@ -380,4 +389,4 @@ For issues or questions:
 
 **Built with ❤️ for intelligent automation**
 
-Last updated: December 9, 2025
+Last updated: December 10, 2024

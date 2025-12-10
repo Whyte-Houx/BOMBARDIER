@@ -8,7 +8,7 @@
 
 ## 1. Layout Structure
 
-```
+```text
 ┌──────────────────────────────────────────────────────────────────────┐
 │  [←]  SETTINGS                                              [×]     │
 ├─────────────┬────────────────────────────────────────────────────────┤
@@ -20,6 +20,7 @@
 │  [Security] │                                                        │
 │  [OAuth]    │                                                        │
 │  [API Keys] │                                                        │
+│  [Webhooks] │  ← NEW                                                 │
 │  [Cloak]    │                                                        │
 │  [Proxies]  │                                                        │
 │  [Workers]  │                                                        │
@@ -206,7 +207,81 @@ Create New Key
 
 ---
 
-### 2.5 Cloak Settings
+### 2.5 Webhooks (NEW)
+
+```text
+WEBHOOK NOTIFICATIONS
+═══════════════════════════════════════════════════════════════
+
+Your Webhooks
+───────────────────────────────────────────────────────────────
+
+  ┌────────────────────────────────────────────────────────────┐
+  │  Production Notifications                                    │
+  │  URL:      https://api.myapp.com/webhooks/bombardier         │
+  │  Events:   campaign.completed, profile.approved               │
+  │  Status:   ● Active                                           │
+  │  Stats:    1,234 sent • 12 failed                             │
+  │                        [Test] [Regenerate Secret] [Delete]   │
+  └────────────────────────────────────────────────────────────┘
+  
+  ┌────────────────────────────────────────────────────────────┐
+  │  Slack Integration                                             │
+  │  URL:      https://hooks.slack.com/services/T.../B.../xxx      │
+  │  Events:   system.error, campaign.failed                       │
+  │  Status:   ● Active                                           │
+  │  Stats:    56 sent • 0 failed                                  │
+  │                        [Test] [Regenerate Secret] [Delete]   │
+  └────────────────────────────────────────────────────────────┘
+
+Create New Webhook
+───────────────────────────────────────────────────────────────
+
+  Name         [                                     ]
+  Endpoint URL [                                     ]
+  
+  Subscribe to Events:
+  
+  Campaign Events:
+  [✓] campaign.created    [✓] campaign.started
+  [✓] campaign.completed  [ ] campaign.failed
+  
+  Profile Events:
+  [✓] profile.approved    [✓] profile.rejected
+  [ ] profile.discovered  [ ] profile.batch.approved
+  
+  Message Events:
+  [ ] message.sent        [ ] message.delivered
+  [ ] message.failed      [ ] message.replied
+  
+  System Events:
+  [✓] system.error        [ ] system.warning
+  [ ] worker.started      [ ] worker.error
+  
+                                          [Create Webhook]
+
+Webhook Security
+───────────────────────────────────────────────────────────────
+
+  All webhook payloads are signed with HMAC-SHA256.
+  Verify the X-Webhook-Signature header to ensure authenticity.
+  
+  Retry Policy: Up to 4 attempts with exponential backoff
+  Timeout: 30 seconds per request
+```
+
+**API Endpoints:**
+
+- `GET /v1/webhooks` - List webhooks
+- `POST /v1/webhooks` - Create webhook
+- `PATCH /v1/webhooks/:id` - Update webhook
+- `DELETE /v1/webhooks/:id` - Delete webhook
+- `POST /v1/webhooks/:id/test` - Send test payload
+- `POST /v1/webhooks/:id/regenerate-secret` - Regenerate signing secret
+
+---
+
+### 2.6 Cloak Settings
 
 ```
 ANTI-DETECTION CONFIGURATION
@@ -273,7 +348,7 @@ Leak Prevention
 
 ---
 
-### 2.6 Proxy Settings
+### 2.7 Proxy Settings
 
 ```
 PROXY MANAGEMENT
@@ -330,7 +405,7 @@ Rotation Strategy
 
 ---
 
-### 2.7 Worker Settings
+### 2.8 Worker Settings
 
 ```
 WORKER PIPELINE STATUS
@@ -369,7 +444,7 @@ Rate Limits
 
 ---
 
-### 2.8 Display Settings
+### 2.9 Display Settings
 
 ```
 DISPLAY PREFERENCES
@@ -411,7 +486,7 @@ Sound Effects
 
 ---
 
-### 2.9 Advanced Settings
+### 2.10 Advanced Settings
 
 ```
 ADVANCED SETTINGS
@@ -445,7 +520,7 @@ Debug
 
 ---
 
-### 2.10 Danger Zone
+### 2.11 Danger Zone
 
 ```
 DANGER ZONE
@@ -496,6 +571,7 @@ type SettingsTab =
   | 'security'
   | 'oauth'
   | 'api-keys'
+  | 'webhooks'   // NEW
   | 'cloak'
   | 'proxies'
   | 'workers'
@@ -519,6 +595,7 @@ interface SettingsState {
   account: AccountData | null;
   sessions: Session[];
   apiKeys: ApiKey[];
+  webhooks: Webhook[];  // NEW
   oauthConnections: OAuthConnection[];
   cloakStatus: CloakStatus | null;
   proxies: Proxy[];

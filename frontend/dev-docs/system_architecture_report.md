@@ -29,20 +29,21 @@ Bombardier is a distributed target acquisition and engagement platform consistin
 |----------|-----------|------|--------------|
 | **Auth** | 7 | Mixed | JWT sessions, OAuth, key rotation |
 | **Campaigns** | 10 | ✅ RBAC | Full CRUD + state machine |
-| **Profiles** | 10 | ✅ RBAC | Batch operations, search |
+| **Profiles** | 13 | ✅ RBAC | Batch operations, search, **advanced boolean queries** |
 | **Messages** | 3 | ✅ RBAC | Status tracking |
 | **Analytics** | 6 | ✅ RBAC + API Key | Real-time + aggregation |
 | **Cloak** | 11 | ✅ RBAC | Proxy/VPN/fingerprint control |
+| **Webhooks** | 8 | ✅ RBAC | **External notifications, HMAC-signed** |
 | **Tracking** | 2 | ✅ RBAC | SSE + WebSocket streams |
 | **Health** | 4 | Mixed | Kubernetes probes |
 | **Metrics** | 1 | ✅ Token | Prometheus export |
 | **Pipeline** | 1 | ✅ RBAC | Quick campaign launch |
 | **OAuth** | 2 | ❌ | Social login (suspended) |
-| **Total** | **59** | — | — |
+| **Total** | **72** | — | **API Version: /v1** |
 
 ### 2.2 Security Model
 
-```
+```text
 Request Flow:
 ┌─────────────────────────────────────────────────────────────┐
 │  Client → Rate Limiter → JWT Plugin → RBAC Plugin → Route  │
@@ -56,6 +57,13 @@ Authentication Modes:
 │ Development│ Mock admin user injection (AUTH_DISABLED=true) │
 │ Internal   │ API Key (X-Api-Key header) for workers         │
 └────────────┴────────────────────────────────────────────────┘
+
+API Versioning:
+┌────────────────────────────────────────────────────────────┐
+│ Current: /v1 (all routes prefixed)                          │
+│ Legacy routes include Deprecation + Sunset headers          │
+│ Sunset date: 2025-06-01                                     │
+└────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -112,7 +120,7 @@ Authentication Modes:
 
 ### 5.1 Queue Architecture
 
-```
+```text
 ┌───────────────────────────────────────────────────────────────────┐
 │                       Redis Queues                                 │
 ├─────────────────┬─────────────────┬─────────────────┬─────────────┤
@@ -127,6 +135,8 @@ Authentication Modes:
 └─────────────────┴─────────────────┴─────────────────┴─────────────┘
                               ↓
                     queue:tracking → Tracking Worker
+                              ↓
+                    Webhook Dispatcher → External Notifications
 ```
 
 ### 5.2 Worker Responsibilities
@@ -200,13 +210,13 @@ Authentication Modes:
 
 ## 9. Data Flow Summary
 
-```
+```text
 User Request
      │
      ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         API GATEWAY (4050)                          │
-│  Auth → RBAC → Validation → Handler → Response                     │
+│  /v1/* → Auth → RBAC → Validation → Handler → Response             │
 └───────────────────────────────┬─────────────────────────────────────┘
                                 │
         ┌───────────────────────┼───────────────────────┐
@@ -222,6 +232,12 @@ User Request
                 │  ML Service   │               │Browser Service│
                 │    (5000)     │               │    (5100)     │
                 └───────────────┘               └───────────────┘
+                                                        │
+                                                        ▼
+                                               ┌───────────────────┐
+                                               │ Webhook Dispatcher │
+                                               │ (External Notify)  │
+                                               └───────────────────┘
 ```
 
 ---
@@ -236,10 +252,44 @@ User Request
 - ✅ Health check hierarchy
 - ✅ Rate limiting
 - ✅ Audit logging
+- ✅ **Webhook system for external notifications** (NEW)
+- ✅ **API versioning (/v1/ prefix)** (NEW)
+- ✅ **Advanced profile filtering (boolean queries)** (NEW)
 
 ### Future Considerations
 
 - ⏳ OAuth re-enablement (credentials needed)
-- ⏳ Webhook system for external notifications
-- ⏳ API versioning (/v1/ prefix)
-- ⏳ Advanced profile filtering (boolean queries)
+- ⏳ WebSocket notifications for real-time UI updates
+- ⏳ API v2 planning (when needed)
+- ⏳ Rate limiting per-endpoint customization
+
+---
+
+## 11. New Features Summary (December 2024)
+
+### 11.1 Webhook System
+
+| Feature | Description |
+|---------|-------------|
+| **Events** | 16 event types (campaign, profile, message, system) |
+| **Security** | HMAC-SHA256 payload signing |
+| **Reliability** | Exponential backoff retry (up to 4 attempts) |
+| **Management** | Full CRUD + test + secret regeneration |
+
+### 11.2 API Versioning
+
+| Feature | Description |
+|---------|-------------|
+| **Current** | `/v1` prefix on all routes |
+| **Backward Compatible** | Legacy routes still work |
+| **Deprecation Headers** | Sunset date: 2025-06-01 |
+| **Documentation** | Root endpoint returns version info |
+
+### 11.3 Advanced Profile Filtering
+
+| Feature | Description |
+|---------|-------------|
+| **Boolean Queries** | AND, OR, NOT, grouping |
+| **Operators** | >, >=, <, <=, wildcards |
+| **Structured Filters** | Status, platform, ranges, dates |
+| **Field Mapping** | Aliases (e.g., `bot` → `botProbability`) |

@@ -1,4 +1,4 @@
-import Fastify, { FastifyRequest } from "fastify";
+import Fastify, { FastifyRequest, FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import { rbacPlugin } from "./plugins/rbac.js";
 import { jwtPlugin } from "./plugins/jwt.js";
@@ -17,8 +17,13 @@ import { campaignsRoutes } from "./routes/campaigns.js";
 import { trackingRoutes } from "./routes/tracking.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import cloakRoutes from "./routes/cloak.js";
+import { webhooksRoutes } from "./routes/webhooks.js";
 
 const server = Fastify({ logger: true });
+
+// ============================================================================
+// Core Middleware
+// ============================================================================
 
 // CORS Configuration
 await server.register(cors, {
@@ -71,29 +76,6 @@ try {
 } catch { }
 
 // ============================================================================
-// Route Registration
-// ============================================================================
-
-// Health & Metrics (Public)
-await server.register(healthRoutes, { prefix: "/health" });
-await server.register(metricsRoutes, { prefix: "/metrics" });
-
-// Authentication (Public entry points)
-await server.register(authRoutes, { prefix: "/auth" });
-await server.register(oauthRoutes, { prefix: "/oauth" });
-
-// Core Business Logic (Protected)
-await server.register(pipelineRoutes, { prefix: "/pipeline" });
-await server.register(profilesRoutes, { prefix: "/profiles" });
-await server.register(messagesRoutes, { prefix: "/messages" });
-await server.register(campaignsRoutes, { prefix: "/campaigns" });
-await server.register(trackingRoutes, { prefix: "/tracking" });
-await server.register(analyticsRoutes, { prefix: "/analytics" });
-
-// Cloak Anti-Detection System (Protected - requires auth)
-await server.register(cloakRoutes, { prefix: "/cloak" });
-
-// ============================================================================
 // Database Connections
 // ============================================================================
 
@@ -104,16 +86,97 @@ await connectMongo(mongoUri);
 await getRedis(redisUrl);
 
 // ============================================================================
-// Hooks & Middleware
+// Infrastructure Routes (No Version Prefix)
 // ============================================================================
+
+// Health & Metrics (Public / Infrastructure)
+await server.register(healthRoutes, { prefix: "/health" });
+await server.register(metricsRoutes, { prefix: "/metrics" });
 
 // Root endpoint
 server.get("/", async () => ({
   message: "ok",
   service: "bombardier-api",
   version: "1.0.0",
+  api: {
+    current: "/v1",
+    versions: ["v1"],
+    documentation: "/v1/docs"
+  },
   timestamp: new Date().toISOString()
 }));
+
+// ============================================================================
+// API Version 1 (/v1)
+// ============================================================================
+
+async function registerV1Routes(app: FastifyInstance) {
+  // Authentication (Public entry points)
+  await app.register(authRoutes, { prefix: "/auth" });
+  await app.register(oauthRoutes, { prefix: "/oauth" });
+
+  // Core Business Logic (Protected)
+  await app.register(pipelineRoutes, { prefix: "/pipeline" });
+  await app.register(profilesRoutes, { prefix: "/profiles" });
+  await app.register(messagesRoutes, { prefix: "/messages" });
+  await app.register(campaignsRoutes, { prefix: "/campaigns" });
+  await app.register(trackingRoutes, { prefix: "/tracking" });
+  await app.register(analyticsRoutes, { prefix: "/analytics" });
+
+  // Cloak Anti-Detection System (Protected)
+  await app.register(cloakRoutes, { prefix: "/cloak" });
+
+  // Webhooks (Protected)
+  await app.register(webhooksRoutes, { prefix: "/webhooks" });
+
+  // Version info
+  app.get("/", async () => ({
+    version: "1",
+    status: "current",
+    endpoints: [
+      "/auth", "/oauth", "/pipeline", "/profiles", "/messages",
+      "/campaigns", "/tracking", "/analytics", "/cloak", "/webhooks"
+    ]
+  }));
+}
+
+// Register v1 routes
+await server.register(registerV1Routes, { prefix: "/v1" });
+
+// ============================================================================
+// Legacy Routes (Deprecated - will redirect to /v1)
+// ============================================================================
+
+// Maintain backwards compatibility by also registering routes at root
+// These will be deprecated in future versions
+await server.register(authRoutes, { prefix: "/auth" });
+await server.register(oauthRoutes, { prefix: "/oauth" });
+await server.register(pipelineRoutes, { prefix: "/pipeline" });
+await server.register(profilesRoutes, { prefix: "/profiles" });
+await server.register(messagesRoutes, { prefix: "/messages" });
+await server.register(campaignsRoutes, { prefix: "/campaigns" });
+await server.register(trackingRoutes, { prefix: "/tracking" });
+await server.register(analyticsRoutes, { prefix: "/analytics" });
+await server.register(cloakRoutes, { prefix: "/cloak" });
+await server.register(webhooksRoutes, { prefix: "/webhooks" });
+
+// Add deprecation warning header to legacy routes
+server.addHook("onSend", async (request, reply, payload) => {
+  const legacyPrefixes = ["/auth", "/oauth", "/pipeline", "/profiles", "/messages", "/campaigns", "/tracking", "/analytics", "/cloak", "/webhooks"];
+  const isLegacy = legacyPrefixes.some(p => request.url.startsWith(p) && !request.url.startsWith("/v1"));
+
+  if (isLegacy) {
+    reply.header("Deprecation", "true");
+    reply.header("Sunset", "2025-06-01");
+    reply.header("Link", `</v1${request.url}>; rel="successor-version"`);
+  }
+
+  return payload;
+});
+
+// ============================================================================
+// Hooks & Middleware
+// ============================================================================
 
 // Request timing metrics
 server.addHook("onResponse", async (request, reply) => {
@@ -135,8 +198,8 @@ server.addHook("onError", async (request, reply, error) => {
 // Audit logging hook
 server.addHook("onResponse", async (request, reply) => {
   const user = (request as any).user;
-  const sensitiveRoutes = ["/auth", "/campaigns", "/profiles/batch"];
-  const isSensitive = sensitiveRoutes.some(r => request.url.startsWith(r));
+  const sensitiveRoutes = ["/auth", "/campaigns", "/profiles/batch", "/webhooks"];
+  const isSensitive = sensitiveRoutes.some(r => request.url.includes(r));
 
   if (isSensitive && user && !user.isMock) {
     server.log.info({
@@ -180,3 +243,4 @@ await server.listen({ port, host: "0.0.0.0" });
 
 server.log.info(`🚀 Bombardier API running on port ${port}`);
 server.log.info(`📊 Auth mode: ${process.env.AUTH_DISABLED === "true" ? "DISABLED (mock admin)" : "ENABLED"}`);
+server.log.info(`🔗 API Version: v1 (current) - Legacy routes deprecated, sunset 2025-06-01`);

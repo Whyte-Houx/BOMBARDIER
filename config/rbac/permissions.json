@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "description": "RBAC permissions configuration for Bombardier API",
   "roles": {
     "admin": [
@@ -15,14 +15,17 @@
       "messages.deliver",
       "analytics.read",
       "cloak.read",
-      "cloak.write"
+      "cloak.write",
+      "webhooks.read",
+      "webhooks.write"
     ],
     "viewer": [
       "profiles.read",
       "campaigns.read",
       "messages.read",
       "analytics.read",
-      "cloak.read"
+      "cloak.read",
+      "webhooks.read"
     ]
   },
   "permissions": [
@@ -37,6 +40,8 @@
     "analytics.write",
     "cloak.read",
     "cloak.write",
+    "webhooks.read",
+    "webhooks.write",
     "system.read",
     "system.write"
   ]

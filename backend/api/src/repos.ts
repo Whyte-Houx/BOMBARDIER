@@ -64,6 +64,19 @@ export const ProfileRepo = {
     ];
     const results = await Profile.aggregate(pipeline);
     return results.reduce((acc: any, r: any) => { acc[r._id] = r.count; return acc; }, {});
+  },
+
+  // Advanced query support for boolean expressions
+  findAdvanced: async (
+    query: Record<string, any>,
+    options: { limit?: number; skip?: number; sort?: Record<string, 1 | -1> } = {}
+  ) => {
+    const { limit = 50, skip = 0, sort = { createdAt: -1 } } = options;
+    return Profile.find(query).sort(sort).skip(skip).limit(limit).lean();
+  },
+
+  countAdvanced: async (query: Record<string, any>): Promise<number> => {
+    return Profile.countDocuments(query);
   }
 };
 

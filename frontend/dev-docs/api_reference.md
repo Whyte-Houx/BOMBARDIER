@@ -1,13 +1,59 @@
 # Bombardier Backend API Reference
 
 > **Base URL:** `http://localhost:4050`  
-> **Total Endpoints:** 59  
+> **API Version:** `v1` (Current)  
+> **Total Endpoints:** 72  
 > **Authentication:** JWT Bearer Token or Internal API Key  
 > **Last Updated:** December 10, 2024
 
 ---
 
-## 🔐 Authentication & Authorization
+## � API Versioning
+
+### Version Prefix
+
+All API endpoints are available under the `/v1` prefix:
+
+```text
+http://localhost:4050/v1/campaigns
+http://localhost:4050/v1/profiles
+http://localhost:4050/v1/webhooks
+```
+
+### Backward Compatibility
+
+Legacy routes (without `/v1` prefix) are still accessible but deprecated. They include the following headers:
+
+| Header | Value | Description |
+|--------|-------|-------------|
+| `Deprecation` | `true` | Route is deprecated |
+| `Sunset` | `2025-06-01` | Deprecation date |
+| `Link` | `</v1/...>; rel="successor-version"` | Link to new endpoint |
+
+### Root Endpoint
+
+```http
+GET /
+```
+
+Returns API version information:
+
+```json
+{
+  "message": "ok",
+  "service": "bombardier-api",
+  "version": "1.0.0",
+  "api": {
+    "current": "/v1",
+    "versions": ["v1"],
+    "documentation": "/v1/docs"
+  }
+}
+```
+
+---
+
+## �🔐 Authentication & Authorization
 
 ### Authentication Modes
 
@@ -33,14 +79,21 @@ Set via `INTERNAL_API_KEY` environment variable.
 | Role | Permissions |
 |------|-------------|
 | **admin** | `*` (all permissions) |
-| **operator** | `profiles.*`, `campaigns.*`, `messages.*`, `analytics.read`, `cloak.*` |
+| **operator** | `profiles.*`, `campaigns.*`, `messages.*`, `analytics.read`, `cloak.*`, `webhooks.*` |
 | **viewer** | `*.read` only |
+
+### Webhook Permissions
+
+| Permission | Description |
+|------------|-------------|
+| `webhooks.read` | View webhook configurations |
+| `webhooks.write` | Create, modify, delete webhooks |
 
 ---
 
 ## 📚 API Endpoints
 
-### Auth (`/auth`)
+### Auth (`/v1/auth`)
 
 | Method | Endpoint | Auth | Permission | Description |
 |--------|----------|------|------------|-------------|
@@ -59,7 +112,7 @@ Set via `INTERNAL_API_KEY` environment variable.
 
 ---
 
-### OAuth (`/oauth`)
+### OAuth (`/v1/oauth`)
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
@@ -70,7 +123,7 @@ Set via `INTERNAL_API_KEY` environment variable.
 
 ---
 
-### Campaigns (`/campaigns`)
+### Campaigns (`/v1/campaigns`)
 
 | Method | Endpoint | Auth | Permission | Description |
 |--------|----------|------|------------|-------------|
@@ -89,7 +142,7 @@ Set via `INTERNAL_API_KEY` environment variable.
 
 ---
 
-### Profiles (`/profiles`)
+### Profiles (`/v1/profiles`)
 
 | Method | Endpoint | Auth | Permission | Description |
 |--------|----------|------|------------|-------------|
@@ -103,10 +156,69 @@ Set via `INTERNAL_API_KEY` environment variable.
 | POST | `/batch/approve` | ✅ | `profiles.write` | Batch approve (max 100) |
 | POST | `/batch/reject` | ✅ | `profiles.write` | Batch reject (max 100) |
 | POST | `/find-by-interests` | ✅ | `profiles.read` | Find by interests array |
+| POST | `/advanced-search` | ✅ | `profiles.read` | **NEW:** Advanced filtering with boolean queries |
+| POST | `/query` | ✅ | `profiles.read` | **NEW:** Execute raw boolean query |
+| GET | `/query-help` | ✅ | `profiles.read` | **NEW:** Boolean query syntax help |
+
+#### Advanced Profile Filtering (NEW)
+
+##### Boolean Query Syntax
+
+The `/advanced-search` and `/query` endpoints support a powerful boolean query language:
+
+| Feature | Syntax | Example |
+|---------|--------|----------|
+| Field match | `field:value` | `interests:tech` |
+| Greater than | `field:>N` | `followers:>1000` |
+| Less than | `field:<N` | `botProbability:<30` |
+| Greater/equal | `field:>=N` | `qualityScore:>=80` |
+| Wildcard | `field:*text*` | `bio:*startup*` |
+| Boolean | `field:true/false` | `verified:true` |
+| AND | `expr AND expr` | `platform:twitter AND followers:>1000` |
+| OR | `expr OR expr` | `status:approved OR status:pending` |
+| NOT | `NOT expr` | `NOT status:rejected` |
+| Grouping | `(expr)` | `(interests:ai OR interests:ml) AND location:US` |
+
+##### Example: Advanced Search Request
+
+```json
+POST /v1/profiles/advanced-search
+{
+  "filters": {
+    "status": "pending",
+    "platform": "twitter",
+    "followersMin": 1000,
+    "followersMax": 100000,
+    "qualityScoreMin": 70,
+    "interests": ["ai", "tech"],
+    "booleanQuery": "NOT botProbability:>50"
+  },
+  "page": 1,
+  "limit": 20,
+  "sort": "qualityScore",
+  "order": "desc"
+}
+```
+
+##### Structured Filter Options
+
+| Filter | Type | Description |
+|--------|------|-------------|
+| `status` | enum | `pending`, `approved`, `rejected`, `engaged` |
+| `platform` | string | Platform name (case-insensitive) |
+| `campaignId` | string | Associated campaign ID |
+| `followersMin/Max` | number | Follower count range |
+| `qualityScoreMin/Max` | number | Quality score range (0-100) |
+| `botProbabilityMax` | number | Maximum bot probability (0-100) |
+| `interests` | string[] | Interest tags to match |
+| `interestsMatchAll` | boolean | Require all interests (default: false) |
+| `createdAfter/Before` | ISO date | Creation date range |
+| `lastActiveAfter` | ISO date | Last activity threshold |
+| `booleanQuery` | string | Boolean query expression |
 
 ---
 
-### Messages (`/messages`)
+### Messages (`/v1/messages`)
 
 | Method | Endpoint | Auth | Permission | Description |
 |--------|----------|------|------------|-------------|
@@ -116,7 +228,7 @@ Set via `INTERNAL_API_KEY` environment variable.
 
 ---
 
-### Analytics (`/analytics`)
+### Analytics (`/v1/analytics`)
 
 | Method | Endpoint | Auth | Permission | Description |
 |--------|----------|------|------------|-------------|
@@ -131,7 +243,7 @@ Set via `INTERNAL_API_KEY` environment variable.
 
 ---
 
-### Tracking (`/tracking`)
+### Tracking (`/v1/tracking`)
 
 | Method | Endpoint | Auth | Permission | Description |
 |--------|----------|------|------------|-------------|
@@ -140,7 +252,7 @@ Set via `INTERNAL_API_KEY` environment variable.
 
 ---
 
-### Pipeline (`/pipeline`)
+### Pipeline (`/v1/pipeline`)
 
 | Method | Endpoint | Auth | Permission | Description |
 |--------|----------|------|------------|-------------|
@@ -148,7 +260,7 @@ Set via `INTERNAL_API_KEY` environment variable.
 
 ---
 
-### Cloak (`/cloak`) — Anti-Detection System
+### Cloak (`/v1/cloak`) — Anti-Detection System
 
 | Method | Endpoint | Auth | Permission | Description |
 |--------|----------|------|------------|-------------|
@@ -165,6 +277,103 @@ Set via `INTERNAL_API_KEY` environment variable.
 | POST | `/account/register` | ✅ | `cloak.write` | Register account for warming |
 
 > ✅ **SECURED:** All cloak endpoints require `cloak.read` or `cloak.write` permissions.
+
+---
+
+### Webhooks (`/v1/webhooks`) — External Notifications (NEW)
+
+| Method | Endpoint | Auth | Permission | Description |
+|--------|----------|------|------------|-------------|
+| GET | `/` | ✅ | `webhooks.read` | List user's webhooks |
+| GET | `/:id` | ✅ | `webhooks.read` | Get webhook by ID |
+| POST | `/` | ✅ | `webhooks.write` | Create new webhook |
+| PATCH | `/:id` | ✅ | `webhooks.write` | Update webhook |
+| DELETE | `/:id` | ✅ | `webhooks.write` | Delete webhook |
+| POST | `/:id/test` | ✅ | `webhooks.write` | Send test payload |
+| POST | `/:id/regenerate-secret` | ✅ | `webhooks.write` | Regenerate signing secret |
+| GET | `/events` | ✅ | `webhooks.read` | List available events |
+
+#### Webhook Event Types
+
+| Category | Events |
+|----------|--------|
+| **Campaign** | `campaign.created`, `campaign.started`, `campaign.paused`, `campaign.completed`, `campaign.failed` |
+| **Profile** | `profile.discovered`, `profile.analyzed`, `profile.approved`, `profile.rejected`, `profile.engaged`, `profile.batch.approved`, `profile.batch.rejected` |
+| **Message** | `message.sent`, `message.delivered`, `message.failed`, `message.replied` |
+| **System** | `system.error`, `system.warning`, `worker.started`, `worker.stopped`, `worker.error` |
+
+#### Create Webhook Request
+
+```json
+POST /v1/webhooks
+{
+  "name": "My Notification Webhook",
+  "url": "https://example.com/webhook",
+  "events": ["campaign.created", "profile.approved", "message.sent"],
+  "headers": {
+    "X-Custom-Header": "value"
+  }
+}
+```
+
+#### Webhook Payload Format
+
+All webhook deliveries include:
+
+```json
+{
+  "event": "profile.approved",
+  "timestamp": "2024-12-10T12:00:00Z",
+  "data": {
+    "profileId": "...",
+    "campaignId": "...",
+    // Event-specific data
+  }
+}
+```
+
+#### Security Headers
+
+| Header | Description |
+|--------|-------------|
+| `X-Webhook-Signature` | `sha256=<hmac-sha256-signature>` |
+| `X-Webhook-Event` | Event type (e.g., `profile.approved`) |
+| `X-Webhook-Timestamp` | ISO 8601 timestamp |
+| `X-Webhook-Id` | Webhook configuration ID |
+
+#### Signature Verification
+
+Verify webhook authenticity using HMAC-SHA256:
+
+```javascript
+const crypto = require('crypto');
+
+function verifyWebhook(payload, signature, secret) {
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(payload, 'utf8')
+    .digest('hex');
+  
+  const received = signature.replace('sha256=', '');
+  return crypto.timingSafeEqual(
+    Buffer.from(expected),
+    Buffer.from(received)
+  );
+}
+```
+
+#### Retry Policy
+
+Failed deliveries are retried with exponential backoff:
+
+| Attempt | Delay |
+|---------|-------|
+| 1 | 1 second |
+| 2 | 2 seconds |
+| 3 | 4 seconds |
+| 4 (final) | 8 seconds |
+
+> ✅ **SECURED:** All webhook endpoints require `webhooks.read` or `webhooks.write` permissions.
 
 ---
 
@@ -236,12 +445,13 @@ Set via `INTERNAL_API_KEY` environment variable.
 
 | Repository | Model | Key Operations |
 |------------|-------|----------------|
-| `ProfileRepo` | Profile | upsert, findByStatus, batchApprove/Reject, searchByText |
+| `ProfileRepo` | Profile | upsert, findByStatus, batchApprove/Reject, searchByText, findAdvanced, countAdvanced |
 | `CampaignRepo` | Campaign | create, list, update, setStatus, updateStats |
 | `MessageRepo` | Message | create, listByCampaign, setStatus, markDelivered/Failed |
 | `UserRepo` | User | findByEmail, create, linkOAuth, setRole |
 | `SessionRepo` | Session | create, findBySessionId, expire, cleanup |
 | `AnalyticsRepo` | Analytics | recordEvent, recordMetric, getMetrics, aggregate |
+| `WebhookRepo` | Webhook | create, findByUser, update, delete, regenerateSecret |
 
 ---
 
