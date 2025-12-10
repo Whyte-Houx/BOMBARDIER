@@ -18,6 +18,9 @@ import { trackingRoutes } from "./routes/tracking.js";
 import { analyticsRoutes } from "./routes/analytics.js";
 import cloakRoutes from "./routes/cloak.js";
 import { webhooksRoutes } from "./routes/webhooks.js";
+import { realtimeRoutes, realtimeNotifier } from "./services/realtime-notifier.js";
+import { rateLimitPlugin, defaultRateLimitConfig } from "./lib/rate-limiter.js";
+import { apiVersionPlugin, v2PreviewRoutes, API_VERSIONS } from "./lib/api-versioning.js";
 
 const server = Fastify({ logger: true });
 
@@ -83,7 +86,30 @@ const mongoUri = process.env.MONGO_URL || "mongodb://localhost:27017/bombardier"
 const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
 
 await connectMongo(mongoUri);
-await getRedis(redisUrl);
+const redis = await getRedis(redisUrl);
+
+// ============================================================================
+// Advanced Plugins
+// ============================================================================
+
+// API Versioning Framework
+await server.register(apiVersionPlugin, {
+  versions: API_VERSIONS,
+  defaultVersion: 1,
+  versionHeader: 'X-API-Version',
+  enableMigrationWarnings: true
+});
+
+// Advanced Per-Endpoint Rate Limiting
+try {
+  await server.register(rateLimitPlugin, {
+    redis,
+    config: defaultRateLimitConfig
+  });
+  server.log.info("Advanced rate limiting enabled");
+} catch (err) {
+  server.log.warn(`Advanced rate limiting failed to initialize: ${String(err)}`);
+}
 
 // ============================================================================
 // Infrastructure Routes (No Version Prefix)
@@ -97,11 +123,17 @@ await server.register(metricsRoutes, { prefix: "/metrics" });
 server.get("/", async () => ({
   message: "ok",
   service: "bombardier-api",
-  version: "1.0.0",
+  version: "2.1.0",
   api: {
     current: "/v1",
-    versions: ["v1"],
-    documentation: "/v1/docs"
+    versions: ["v1", "v2"],
+    preview: "/v2",
+    documentation: "/api/versions"
+  },
+  features: {
+    realtime: "/v1/realtime/ws",
+    webhooks: "/v1/webhooks",
+    advancedFiltering: "/v1/profiles/advanced-search"
   },
   timestamp: new Date().toISOString()
 }));
@@ -129,19 +161,29 @@ async function registerV1Routes(app: FastifyInstance) {
   // Webhooks (Protected)
   await app.register(webhooksRoutes, { prefix: "/webhooks" });
 
+  // Real-time Notifications (WebSocket)
+  await app.register(realtimeRoutes, { prefix: "/realtime" });
+
   // Version info
   app.get("/", async () => ({
     version: "1",
     status: "current",
     endpoints: [
       "/auth", "/oauth", "/pipeline", "/profiles", "/messages",
-      "/campaigns", "/tracking", "/analytics", "/cloak", "/webhooks"
+      "/campaigns", "/tracking", "/analytics", "/cloak", "/webhooks",
+      "/realtime"
     ]
   }));
 }
 
 // Register v1 routes
 await server.register(registerV1Routes, { prefix: "/v1" });
+
+// ============================================================================
+// API Version 2 Preview (/v2) - Experimental
+// ============================================================================
+
+await server.register(v2PreviewRoutes, { prefix: "/v2" });
 
 // ============================================================================
 // Legacy Routes (Deprecated - will redirect to /v1)

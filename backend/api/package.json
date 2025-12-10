@@ -26,6 +26,7 @@
   "devDependencies": {
     "@pact-foundation/pact": "^16.0.2",
     "@types/node": "^20.11.30",
+    "@types/ws": "^8.18.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3",
     "vitest": "^4.0.15"

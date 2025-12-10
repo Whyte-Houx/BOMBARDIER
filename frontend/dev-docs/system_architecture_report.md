@@ -259,15 +259,17 @@ User Request
 | API versioning | ✅ Complete | /v1 prefix, deprecation headers |
 | Advanced profile filtering | ✅ Complete | Boolean query language |
 | Security vulnerabilities | ✅ Resolved | 0 vulnerabilities (Dec 10, 2024) |
+| **WebSocket notifications** | ✅ **Complete** | Real-time channel subscriptions, broadcast |
+| **Per-endpoint rate limits** | ✅ **Complete** | Role-based, weighted costs, 20+ endpoint rules |
+| **API v2 planning** | ✅ **Complete** | Framework ready, v2 preview at /v2 |
 
 ### 10.2 Future Considerations
 
 | Feature | Priority | Notes |
 |---------|----------|-------|
 | OAuth re-enablement | Medium | Requires credentials configuration |
-| WebSocket notifications | Medium | Real-time UI updates |
-| API v2 planning | Low | When breaking changes needed |
-| Per-endpoint rate limits | Low | Customization for specific routes |
+| GraphQL endpoint | Medium | Planned for v2 |
+| Rate limit quotas per user | Low | Monthly/daily limits |
 
 ---
 
